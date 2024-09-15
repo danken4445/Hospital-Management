@@ -4,18 +4,40 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "DARK_MODE=media expo start --android",
+    "ios": "DARK_MODE=media expo start --ios",
+    "web": "DARK_MODE=media expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
+    "@gluestack-style/react": "^1.0.57",
+    "@gluestack-ui/nativewind-utils": "^1.0.23",
+    "@gluestack-ui/overlay": "^0.1.15",
+    "@gluestack-ui/themed": "^1.1.51",
+    "@gluestack-ui/toast": "^1.0.7",
+    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-navigation/native": "^6.1.18",
+    "@react-navigation/stack": "^6.4.1",
+    "@types/react": "~18.2.79",
+    "babel-plugin-module-resolver": "^5.0.2",
     "expo": "~51.0.28",
     "expo-status-bar": "~1.12.1",
+    "firebase": "^10.13.1",
+    "nativewind": "4.0.36",
     "react": "18.2.0",
-    "react-native": "0.74.5"
+    "react-native": "0.74.5",
+    "react-native-gesture-handler": "^2.19.0",
+    "react-native-paper": "^5.12.5",
+    "react-native-reanimated": "^3.15.2",
+    "react-native-safe-area-context": "^4.11.0",
+    "tailwind-rn": "^4.2.0",
+    "tailwindcss": "^3.4.11",
+    "typescript": "~5.3.3"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "jscodeshift": "^0.15.2",
+    "prettier": "^3.3.3"
   },
   "private": true
 }
