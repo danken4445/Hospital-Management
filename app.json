@@ -3,11 +3,11 @@
     "name": "HospitalInventorySystem",
     "slug": "HospitalInventorySystem",
     "version": "1.0.0",
-    "orientation": "landscape",
-    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

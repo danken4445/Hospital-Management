@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, Text, Alert, StyleSheet } from 'react-native';
+import { View, Alert, StyleSheet, Image } from 'react-native';
+import { TextInput, Button, Text, ActivityIndicator, Provider as PaperProvider } from 'react-native-paper';
 import { auth } from '../../firebaseConfig'; // Adjust the import path as needed
 import { signInWithEmailAndPassword } from 'firebase/auth'; // Import signInWithEmailAndPassword
 
@@ -22,56 +23,92 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <Box flex={1} justifyContent="center" alignItems="center" bg="gray.100" px={4}>
-      <VStack space={5} w="full" maxW="300px">
-        <Text fontSize="2xl" textAlign="center" fontWeight="bold">
-          Login
-        </Text>
+    <PaperProvider>
+      <View style={styles.container}>
+        <Image source={require('../../assets/logo.png')} style={styles.logo} />
+        <Text style={styles.title}>Staff Login</Text>
 
-        <Input
-          placeholder="Department ID"
+        <TextInput
+          label="Department ID"
           value={departmentID}
           onChangeText={setDepartmentID}
           keyboardType="email-address"
-          w="full"
-          bg="white"
-          borderRadius="md"
-          px={3}
-          py={2}
+          mode="outlined"
+          style={styles.input}
+          theme={{ colors: { primary: themeColors.primary, text: themeColors.text } }}
         />
 
-        <Input
-          placeholder="Password"
+        <TextInput
+          label="Password"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
-          w="full"
-          bg="white"
-          borderRadius="md"
-          px={3}
-          py={2}
+          mode="outlined"
+          style={styles.input}
+          theme={{ colors: { primary: themeColors.primary, text: themeColors.text } }}
         />
 
-        <Button
-          isLoading={loading}
-          onPress={handleLogin}
-          w="full"
-          bg="blue.500"
-          _text={{ color: 'white' }}
-          borderRadius="md"
-        >
-          {loading ? 'Logging in...' : 'Login'}
-        </Button>
+        {loading ? (
+          <ActivityIndicator animating={true} size="large" color={themeColors.primary} />
+        ) : (
+          <Button
+            mode="contained"
+            onPress={handleLogin}
+            style={styles.button}
+            labelStyle={{ color: themeColors.buttonText }}
+            buttonColor={themeColors.primary}
+          >
+            Login
+          </Button>
+        )}
 
-        <HStack justifyContent="center">
-          <Text color="blue.500" onPress={() => navigation.navigate('ForgotPassword')}>
-            Forgot Password?
-          </Text>
-        </HStack>
-      </VStack>
-    </Box>
+      </View>
+    </PaperProvider>
   );
 };
 
+const themeColors = {
+  primary: '#7a0026',
+  accent: '#b3003a',
+  text: '#fff',
+  background: '#fff',
+  buttonText: '#fff',
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'start',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: themeColors.background,
+  },
+  logo: {
+    width: 300,
+    height: 150,
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+    color: themeColors.primary,
+  },
+  input: {
+    width: '100%',
+    marginBottom: 15,
+  },
+  button: {
+    marginTop: 10,
+    width: '100%',
+    paddingVertical: 8,
+  },
+  forgotPassword: {
+    marginTop: 10,
+    width: '100%',
+    color: themeColors.primary,
+  },
+});
 
 export default LoginScreen;

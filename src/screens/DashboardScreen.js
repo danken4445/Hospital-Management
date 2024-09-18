@@ -1,35 +1,91 @@
-// screens/Dashboard.js
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import FABGrid from '../components/FAB.js';
+import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions } from 'react-native';
+import FeatureCard from '../components/Card';
+import UsageAnalyticsCard from '../components/UsageAnalyticsCard';
+import Toast from 'react-native-toast-message';
 
-const Dashboard = () => {
-  // Updated array with valid icon names
-  const fabIcons = [
-    'plus', 'pencil', 'delete', 'magnify', 'refresh', 'camera', 'email', 'cog'
-  ];
+const { height } = Dimensions.get('window');
 
-  const handleFABPress = (icon) => {
-    console.log(`Pressed ${icon}`);
-    // Implement specific logic for each FAB press
+const Dashboard = ({ navigation }) => {
+  const handlePatientScannerPress = () => {
+    Toast.show({
+      type: 'success',
+      position: 'bottom',
+      text1: 'Navigating to Patient Scanner',
+      visibilityTime: 3000,
+      autoHide: true,
+      bottomOffset: 40,
+    });
+    navigation.navigate('PatientScanner');
   };
 
   return (
-    <View style={styles.container}>
-      {/* Your existing content, e.g., inventory list or other components */}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
+        {/* Usage Analytics Card on top */}
+        <View style={styles.cardContainer}>
+          <UsageAnalyticsCard />
+        </View>
 
-      <FABGrid fabIcons={fabIcons} onPress={handleFABPress} />
-    </View>
+        {/* Feature Cards */}
+        <View style={styles.grid}>
+          <FeatureCard
+            title="Inventory"
+            icon={require('../../assets/inventory.png')}
+            onPress={() => navigation.navigate('Inventory')}
+          />
+          <FeatureCard
+            title="Overall Inventory"
+            icon={require('../../assets/inventoryOverall.png')}
+            onPress={() => navigation.navigate('OverallInventory')}
+          />
+          <FeatureCard
+            title="Patient Scanner"
+            icon={require('../../assets/patientScanner.png')}
+            onPress={handlePatientScannerPress} // Updated handler
+          />
+          <FeatureCard
+            title="Inventory Scanner"
+            icon={require('../../assets/inventoryScanner.png')}
+            onPress={() => navigation.navigate('InventoryScanner')}
+          />
+          <FeatureCard
+            title="Access Department"
+            icon={require('../../assets/accessDept.png')}
+            onPress={() => navigation.navigate('AccessDepartment')}
+          />
+          <FeatureCard
+            title="Inventory History"
+            icon={require('../../assets/inventoryHistory.png')}
+            onPress={() => navigation.navigate('InventoryHistory')}
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFBFAF'
+    backgroundColor: '#fff',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingVertical: 20,
+    justifyContent: 'flex-start', // Ensures content starts at the top
+  },
+  cardContainer: {
+    marginBottom: 20, // Space below the UsageAnalyticsCard
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
   },
 });
 
