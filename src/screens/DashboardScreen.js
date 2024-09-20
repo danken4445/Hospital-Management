@@ -18,6 +18,32 @@ const Dashboard = ({ navigation }) => {
     });
     navigation.navigate('PatientScanner');
   };
+  const handleInventoryHistoryPress = () => {
+    Toast.show({
+      type: 'success',
+      position: 'bottom',
+      text1: 'Navigating to Inventory History',
+      visibilityTime: 3000,
+      autoHide: true,
+      bottomOffset: 40,
+    });
+    navigation.navigate('InventoryHistory');
+  };
+  const handleInventoryScreenPress = () => {
+    Toast.show({
+      type: 'success',
+      position: 'bottom',
+      text1: 'Navigating to Inventory History',
+      visibilityTime: 3000,
+      autoHide: true,
+      bottomOffset: 40,
+    });
+    navigation.navigate('InventoryScreen');
+  };
+
+
+
+
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -32,7 +58,8 @@ const Dashboard = ({ navigation }) => {
           <FeatureCard
             title="Inventory"
             icon={require('../../assets/inventory.png')}
-            onPress={() => navigation.navigate('Inventory')}
+            onPress={handleInventoryScreenPress}
+
           />
           <FeatureCard
             title="Overall Inventory"
@@ -57,7 +84,7 @@ const Dashboard = ({ navigation }) => {
           <FeatureCard
             title="Inventory History"
             icon={require('../../assets/inventoryHistory.png')}
-            onPress={() => navigation.navigate('InventoryHistory')}
+            onPress={handleInventoryHistoryPress} // Updated handler
           />
         </View>
       </ScrollView>

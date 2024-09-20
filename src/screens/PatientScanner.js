@@ -1,65 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Camera } from 'expo-camera';
-import { getDatabase, ref, get } from 'firebase/database'; // Adjust the import path as needed
+import { BarCodeScanner } from 'expo-barcode-scanner';
+import { getDatabase, ref, get } from 'firebase/database';
 
-const PatientScanner = () => {
+const PatientScanner = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
-  const [patientInfo, setPatientInfo] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
   }, []);
 
   const handleBarCodeScanned = async ({ type, data }) => {
+    console.log('Scanned ID:', data);
     setScanned(true);
     setLoading(true);
     try {
-      // Fetch patient data from Firebase Realtime Database
       const db = getDatabase();
-      const patientRef = ref(db, `patients/${data}`); // Assuming QR code data is patient ID
+      const patientRef = ref(db, `patient/${data}`);
+      console.log('Fetching patient data from:', `patient/${data}`);
       const snapshot = await get(patientRef);
 
       if (snapshot.exists()) {
-        setPatientInfo(snapshot.val());
+        console.log('Patient data found:', snapshot.val());
+        setLoading(false);
+        // Navigate to PatientInfoScreen with patient data
+        navigation.navigate('PatientInfo', { patientData: snapshot.val() });
       } else {
-        Alert.alert('No Data', 'No patient data found for the scanned QR code.');
+        console.log('No patient data found for ID:', data);
+        Alert.alert('No Data', `No patient data found for the scanned ID: ${data}.`);
+        setLoading(false);
       }
     } catch (error) {
+      console.error('Error fetching patient data:', error);
       Alert.alert('Error', 'An error occurred while fetching patient data.');
-    } finally {
       setLoading(false);
     }
   };
 
   if (hasPermission === null) {
-    return <View />;
+    return <View style={styles.centered}><Text>Requesting camera permission...</Text></View>;
   }
 
   if (hasPermission === false) {
-    return <Text>No access to camera</Text>;
+    return <View style={styles.centered}><Text>No access to camera</Text></View>;
   }
 
   return (
     <View style={styles.container}>
-      <Camera
-        style={styles.camera}
+      <BarCodeScanner
         onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-      >
-        {loading && <ActivityIndicator size="large" color="#0000ff" />}
-      </Camera>
-      {patientInfo && !loading && (
-        <View style={styles.infoContainer}>
-          <Text style={styles.infoText}>Name: {patientInfo.Name}</Text>
-          <Text style={styles.infoText}>Date of Birth: {patientInfo.DateOfBirth}</Text>
-          <Text style={styles.infoText}>Diagnosis: {patientInfo.Diagnosis}</Text>
-          <Text style={styles.infoText}>Final Diagnosis: {patientInfo.FinalDiagnosis}</Text>
-          <Text style={styles.infoText}>Room Accommodation: {patientInfo.RoomAccommodation}</Text>
+        style={styles.barcodeScanner}
+      />
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0000ff" />
         </View>
       )}
     </View>
@@ -72,20 +71,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  camera: {
-    width: '100%',
-    height: '100%',
+  barcodeScanner: {
+    ...StyleSheet.absoluteFillObject,
   },
-  infoContainer: {
-    position: 'absolute',
-    bottom: 0,
-    backgroundColor: '#fff',
-    padding: 20,
-    width: '100%',
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)', // Semi-transparent background while loading
   },
-  infoText: {
-    fontSize: 16,
-    marginBottom: 10,
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
