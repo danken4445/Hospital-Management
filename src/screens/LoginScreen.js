@@ -1,21 +1,54 @@
 import React, { useState } from 'react';
 import { View, Alert, StyleSheet, Image } from 'react-native';
 import { TextInput, Button, Text, ActivityIndicator, Provider as PaperProvider } from 'react-native-paper';
-import { auth } from '../../firebaseConfig'; // Adjust the import path as needed
-import { signInWithEmailAndPassword } from 'firebase/auth'; // Import signInWithEmailAndPassword
+import { auth, database } from '../../firebaseConfig'; // Ensure the correct path
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { ref, get } from 'firebase/database';
 
 const LoginScreen = ({ navigation }) => {
-  const [departmentID, setDepartmentID] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, departmentID, password);
-      Alert.alert('Success', 'Logged in successfully!');
-      navigation.navigate('Dashboard'); // Redirect to the dashboard screen
+      // Sign in with email and password
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Fetch user role and department from Firebase Realtime Database
+      const userRef = ref(database, `users/${user.uid}`);
+      const snapshot = await get(userRef);
+
+      if (snapshot.exists()) {
+        const userData = snapshot.val();
+
+        // Check user role and navigate accordingly
+        switch (userData.role) {
+          case 'admin':
+            navigation.navigate('Dashboard'); // Admin Dashboard
+            break;
+          case 'csr':
+            navigation.navigate('CSRdashboardScreen'); // CSR-specific screen
+            break;
+          case 'pharmacy':
+            navigation.navigate('PharmacyScreen'); // Pharmacy-specific screen
+            break;
+          case 'icu':
+            navigation.navigate('ICUScreen'); // ICU-specific screen
+            break;
+          case 'inpatient':
+            navigation.navigate('InpatientsScreen'); // Inpatients-specific screen
+            break;
+          default:
+            Alert.alert('Access Denied', 'You do not have permission to access this app.');
+        }
+      } else {
+        Alert.alert('Error', 'User data not found.');
+      }
     } catch (error) {
+      console.error('Error during login:', error);
       Alert.alert('Error', error.message);
     } finally {
       setLoading(false);
@@ -29,9 +62,9 @@ const LoginScreen = ({ navigation }) => {
         <Text style={styles.title}>Staff Login</Text>
 
         <TextInput
-          label="Department ID"
-          value={departmentID}
-          onChangeText={setDepartmentID}
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
           keyboardType="email-address"
           mode="outlined"
           style={styles.input}

@@ -1,11 +1,11 @@
-// firebaseConfig.js
-
-import { initializeApp } from 'firebase/app';
+// Import necessary Firebase modules
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
-import { getFirestore } from 'firebase/firestore'; // Import Firestore
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database'; // Import Realtime Database if needed
 
-// Your web app's Firebase configuration
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAweN0wKRogH43dfla4RBtMbdSmJ_MaKh0",
   authDomain: "hospital-management-syst-315f8.firebaseapp.com",
@@ -17,8 +17,8 @@ const firebaseConfig = {
   measurementId: "G-9D4XB73EFT"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase app only if it's not already initialized
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize Firebase Authentication with AsyncStorage for persistence
 const auth = initializeAuth(app, {
@@ -28,4 +28,7 @@ const auth = initializeAuth(app, {
 // Initialize Firestore
 const firestore = getFirestore(app);
 
-export { auth, firestore };
+// Initialize Realtime Database
+const database = getDatabase(app);
+
+export { auth, firestore, database };

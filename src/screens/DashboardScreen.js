@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions } from 'react-native';
+import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar } from 'react-native';
 import FeatureCard from '../components/Card';
 import UsageAnalyticsCard from '../components/UsageAnalyticsCard';
 import Toast from 'react-native-toast-message';
@@ -18,6 +18,7 @@ const Dashboard = ({ navigation }) => {
     });
     navigation.navigate('PatientScanner');
   };
+
   const handleInventoryHistoryPress = () => {
     Toast.show({
       type: 'success',
@@ -29,11 +30,12 @@ const Dashboard = ({ navigation }) => {
     });
     navigation.navigate('InventoryHistory');
   };
+
   const handleInventoryScreenPress = () => {
     Toast.show({
       type: 'success',
       position: 'bottom',
-      text1: 'Navigating to Inventory History',
+      text1: 'Navigating to Inventory Screen',
       visibilityTime: 3000,
       autoHide: true,
       bottomOffset: 40,
@@ -41,12 +43,10 @@ const Dashboard = ({ navigation }) => {
     navigation.navigate('InventoryScreen');
   };
 
-
-
-
-
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.fullScreenContainer}>
+      {/* Configure StatusBar for full screen */}
+      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
       <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
         {/* Usage Analytics Card on top */}
         <View style={styles.cardContainer}>
@@ -59,17 +59,16 @@ const Dashboard = ({ navigation }) => {
             title="Inventory"
             icon={require('../../assets/inventory.png')}
             onPress={handleInventoryScreenPress}
-
           />
           <FeatureCard
-            title="Overall Inventory"
+            title="Create an Account"
             icon={require('../../assets/inventoryOverall.png')}
-            onPress={() => navigation.navigate('OverallInventory')}
+            onPress={() => navigation.navigate('CreateAccountScreen')}
           />
           <FeatureCard
             title="Patient Scanner"
             icon={require('../../assets/patientScanner.png')}
-            onPress={handlePatientScannerPress} // Updated handler
+            onPress={handlePatientScannerPress}
           />
           <FeatureCard
             title="Inventory Scanner"
@@ -84,18 +83,19 @@ const Dashboard = ({ navigation }) => {
           <FeatureCard
             title="Inventory History"
             icon={require('../../assets/inventoryHistory.png')}
-            onPress={handleInventoryHistoryPress} // Updated handler
+            onPress={handleInventoryHistoryPress}
           />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingTop: StatusBar.currentHeight || 0, // Padding to avoid overlap with status bar
   },
   scrollView: {
     flex: 1,

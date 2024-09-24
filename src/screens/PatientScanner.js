@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import { getDatabase, ref, get } from 'firebase/database';
 
@@ -61,6 +61,14 @@ const PatientScanner = ({ navigation }) => {
           <ActivityIndicator size="large" color="#0000ff" />
         </View>
       )}
+      {scanned && !loading && (
+        <TouchableOpacity
+          style={styles.scanAgainButton}
+          onPress={() => setScanned(false)}
+        >
+          <Text style={styles.scanAgainText}>Scan Again</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -84,6 +92,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scanAgainButton: {
+    position: 'absolute',
+    bottom: 50,
+    backgroundColor: '#007bff',
+    padding: 15,
+    borderRadius: 10,
+  },
+  scanAgainText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 

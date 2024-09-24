@@ -13,7 +13,7 @@ const InventoryScreen = () => {
   useEffect(() => {
     const db = getDatabase();
     const suppliesRef = ref(db, 'supplies');
-    const medicinesRef = ref(db, 'medicines');
+    const medicinesRef = ref(db, 'medicine');
 
     const fetchData = () => {
       let allInventory = [];
