@@ -18,32 +18,37 @@ const InventoryScreen = () => {
     const fetchData = () => {
       let allInventory = [];
       
+      // Fetch supplies data
       onValue(suppliesRef, (snapshot) => {
         if (snapshot.exists()) {
           const suppliesData = snapshot.val();
           const suppliesArray = Object.keys(suppliesData).map((key) => ({
             id: key,
-            name: suppliesData[key].name,
+            name: suppliesData[key].itemName, // Updated to match 'supplyName' field
             quantity: suppliesData[key].quantity,
             type: 'Supplies',
           }));
           allInventory = [...allInventory, ...suppliesArray];
+          setInventory(allInventory);
+          setFilteredInventory(allInventory);
+          setLoading(false); // Stop loading indicator after fetching supplies
         }
       });
 
+      // Fetch medicines data
       onValue(medicinesRef, (snapshot) => {
         if (snapshot.exists()) {
           const medicinesData = snapshot.val();
           const medicinesArray = Object.keys(medicinesData).map((key) => ({
             id: key,
-            name: medicinesData[key].name,
+            name: medicinesData[key].itemName, // Updated to match 'itemName' field
             quantity: medicinesData[key].quantity,
             type: 'Medicines',
           }));
           allInventory = [...allInventory, ...medicinesArray];
           setInventory(allInventory);
           setFilteredInventory(allInventory);
-          setLoading(false);
+          setLoading(false); // Stop loading indicator after fetching medicines
         }
       });
     };

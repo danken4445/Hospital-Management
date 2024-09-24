@@ -59,7 +59,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
     try {
       await update(patientRef, updatedData);
       Alert.alert('Success', 'Patient data updated successfully!');
-      navigation.goBack();
+      // Remain on the same screen after saving
     } catch (error) {
       Alert.alert('Error', 'An error occurred while updating patient data.');
     }
@@ -140,12 +140,16 @@ const PatientInfoScreen = ({ route, navigation }) => {
       try {
         await update(itemRef, { quantity: updatedQuantity });
 
+        // Add timestamp when medicine is used
+        const timestamp = new Date().toISOString();
+
         if (scanningFor === 'supplies') {
           setSuppliesUsed((prev) => ({
             ...prev,
             [scannedItem.id]: {
               name: scannedItem.itemName,
               quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
+              lastUsed: timestamp, // Record last used timestamp
             },
           }));
         } else if (scanningFor === 'medicines') {
@@ -154,6 +158,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
             [scannedItem.id]: {
               name: scannedItem.itemName,
               quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
+              lastUsed: timestamp, // Record last used timestamp
             },
           }));
         }
@@ -261,9 +266,12 @@ const PatientInfoScreen = ({ route, navigation }) => {
 
   const renderUsedItems = (usedItems) => {
     return Object.entries(usedItems).map(([key, item]) => (
-      <Text key={key} style={styles.textArea}>
-        {item.name} ({item.quantity})
-      </Text>
+      <View key={key} style={styles.textAreaContainer}>
+        <Text style={styles.textArea}>
+          {item.name} ({item.quantity})
+        </Text>
+        <Text style={styles.timestampText}>Last Used: {item.lastUsed || 'N/A'}</Text>
+      </View>
     ));
   };
 
@@ -328,7 +336,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
         <Button title="Scan Item for Medicines" onPress={() => handleScan('medicines')} />
 
         {!addPrescription ? (
-          <Button title="Add Prescription" onPress={handleAddPrescription} />
+          <Button style={styles.buttons} title="Add Prescription" onPress={handleAddPrescription} />
         ) : (
           <View style={styles.prescriptionForm}>
             <Text style={styles.formLabel}>Prescription Name:</Text>
@@ -455,6 +463,10 @@ const styles = StyleSheet.create({
     minHeight: 20,
     fontSize: 16,
     marginBottom: 5,
+  },
+  timestampText: {
+    fontSize: 14,
+    color: '#555',
   },
   roomTypeText: {
     fontSize: 16,
