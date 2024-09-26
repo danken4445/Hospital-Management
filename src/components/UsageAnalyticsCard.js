@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
-import { Card } from 'react-native-paper'; // Import the Card component for UI styling
+import { View, Text, StyleSheet, Dimensions, ScrollView, Animated } from 'react-native';
+import { Card } from 'react-native-paper';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 import { getDatabase, ref, onValue } from 'firebase/database';
 
@@ -9,8 +9,9 @@ const screenWidth = Dimensions.get('window').width;
 const UsageAnalyticsCard = () => {
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [pieChartData, setPieChartData] = useState([]);
-  const [barChartData, setBarChartData] = useState(null); // Initial state is null
+  const [barChartData, setBarChartData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [scrollX] = useState(new Animated.Value(0));
 
   useEffect(() => {
     const db = getDatabase();
@@ -86,52 +87,101 @@ const UsageAnalyticsCard = () => {
     return colors[index % colors.length];
   };
 
-  return (
-    <Card style={styles.card}>
-      <Card.Content>
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          {/* Pie Chart */}
-          <Text style={styles.chartTitle}>Item Usage Overview</Text>
-          {pieChartData.length ? (
-            <PieChart
-              data={pieChartData}
-              width={screenWidth - 60} // Reduced width to fit inside the card
-              height={200} // Adjusted height for a compact look
-              chartConfig={chartConfig}
-              accessor={'quantity'}
-              backgroundColor={'transparent'}
-              paddingLeft={'15'}
-              absolute
-            />
-          ) : (
-            <Text style={styles.noDataText}>No data available for the pie chart.</Text>
-          )}
+  const renderSlide = (type) => {
+    if (type === 'pie') {
+      return (
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text style={styles.chartTitle}>Item Usage Overview</Text>
+            {pieChartData.length ? (
+              <PieChart
+                data={pieChartData}
+                width={screenWidth - 60}
+                height={220}
+                chartConfig={chartConfig}
+                accessor={'quantity'}
+                backgroundColor={'transparent'}
+                paddingLeft={'15'}
+                absolute
+              />
+            ) : (
+              <Text style={styles.noDataText}>No data available for the pie chart.</Text>
+            )}
+          </Card.Content>
+        </Card>
+      );
+    } else if (type === 'bar') {
+      return (
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text style={styles.chartTitle}>Item-wise Usage</Text>
+            {barChartData ? (
+              <BarChart
+                data={barChartData}
+                width={screenWidth - 60}
+                height={250}
+                chartConfig={chartConfig}
+                verticalLabelRotation={30}
+                fromZero
+                showBarTops={false}
+                showValuesOnTopOfBars={true}
+              />
+            ) : (
+              <Text style={styles.noDataText}>No data available for the bar chart.</Text>
+            )}
+          </Card.Content>
+        </Card>
+      );
+    }
+  };
 
-          {/* Bar Chart */}
-          <Text style={styles.chartTitle}>Item-wise Usage</Text>
-          {barChartData ? (
-            <BarChart
-              data={barChartData}
-              width={screenWidth - 60} // Reduced width to fit inside the card
-              height={220} // Adjusted height for a compact look
-              chartConfig={chartConfig}
-              verticalLabelRotation={30}
-              fromZero
+  const renderPagination = () => {
+    const position = Animated.divide(scrollX, screenWidth);
+    return (
+      <View style={styles.paginationContainer}>
+        {['pie', 'bar'].map((_, i) => {
+          const opacity = position.interpolate({
+            inputRange: [i - 1, i, i + 1],
+            outputRange: [0.3, 1, 0.3],
+            extrapolate: 'clamp'
+          });
+          return (
+            <Animated.View
+              key={i}
+              style={[styles.paginationDot, { opacity }]}
             />
-          ) : (
-            <Text style={styles.noDataText}>No data available for the bar chart.</Text>
-          )}
-        </ScrollView>
-      </Card.Content>
-    </Card>
+          );
+        })}
+      </View>
+    );
+  };
+
+  return (
+    <View>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        style={{ width: screenWidth }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
+        {renderSlide('pie')}
+        {renderSlide('bar')}
+      </ScrollView>
+      {renderPagination()}
+    </View>
   );
 };
 
 const chartConfig = {
-  backgroundColor: '#fff',
-  backgroundGradientFrom: '#fbfbfb',
-  backgroundGradientTo: '#fbfbfb',
-  decimalPlaces: 0, // Optional, defaults to 2dp
+  backgroundColor: '#ffffff',
+  backgroundGradientFrom: '#f5f5f5',
+  backgroundGradientTo: '#f5f5f5',
+  decimalPlaces: 0,
   color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
   labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
   style: {
@@ -146,26 +196,40 @@ const chartConfig = {
 
 const styles = StyleSheet.create({
   card: {
-    margin: 10,
-    borderRadius: 10,
-    elevation: 3,
-  },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    margin: 20,
+    borderRadius: 16,
+    elevation: 5,
+    backgroundColor: '#ffffff',
+    width: screenWidth - 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
   chartTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginVertical: 10,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginVertical: 15,
     textAlign: 'center',
   },
   noDataText: {
-    fontSize: 14,
-    color: '#aaa',
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
-    marginVertical: 10,
+    marginVertical: 20,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 15,
+  },
+  paginationDot: {
+    height: 12,
+    width: 12,
+    borderRadius: 6,
+    backgroundColor: '#333',
+    marginHorizontal: 6,
   },
 });
 

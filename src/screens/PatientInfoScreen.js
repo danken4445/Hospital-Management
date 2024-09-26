@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, Modal, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, Modal, TouchableOpacity, StatusBar, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import { getDatabase, ref, get, update, push } from 'firebase/database';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Card, FAB, IconButton, Paragraph, Title } from 'react-native-paper';
 
 const PatientInfoScreen = ({ route, navigation }) => {
   const { patientData } = route.params;
@@ -59,7 +60,6 @@ const PatientInfoScreen = ({ route, navigation }) => {
     try {
       await update(patientRef, updatedData);
       Alert.alert('Success', 'Patient data updated successfully!');
-      // Remain on the same screen after saving
     } catch (error) {
       Alert.alert('Error', 'An error occurred while updating patient data.');
     }
@@ -120,7 +120,18 @@ const PatientInfoScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleQuantityConfirm = async () => {
+  const handleQuantityConfirm = () => {
+    // Confirm the quantity but do not update the database yet
+    const quantityToUse = parseInt(quantity, 10);
+    if (isNaN(quantityToUse) || quantityToUse <= 0) {
+      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
+      return;
+    }
+
+    setQuantityModalVisible(false); // Hide the modal to show the save button
+  };
+
+  const handleSaveScannedItem = async () => {
     const quantityToUse = parseInt(quantity, 10);
     if (isNaN(quantityToUse) || quantityToUse <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
@@ -140,7 +151,6 @@ const PatientInfoScreen = ({ route, navigation }) => {
       try {
         await update(itemRef, { quantity: updatedQuantity });
 
-        // Add timestamp when medicine is used
         const timestamp = new Date().toISOString();
 
         if (scanningFor === 'supplies') {
@@ -149,7 +159,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
             [scannedItem.id]: {
               name: scannedItem.itemName,
               quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
-              lastUsed: timestamp, // Record last used timestamp
+              lastUsed: timestamp,
             },
           }));
         } else if (scanningFor === 'medicines') {
@@ -158,16 +168,16 @@ const PatientInfoScreen = ({ route, navigation }) => {
             [scannedItem.id]: {
               name: scannedItem.itemName,
               quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
-              lastUsed: timestamp, // Record last used timestamp
+              lastUsed: timestamp,
             },
           }));
         }
 
-        await logInventoryHistory(scannedItem.supplyName || scannedItem.itemName, quantityToUse, scanningFor);
+        await logInventoryHistory(scannedItem.itemName, quantityToUse, scanningFor);
 
-        Alert.alert('Success', `${scannedItem.supplyName || scannedItem.itemName} quantity updated successfully.`);
+        Alert.alert('Success', `Quantity of ${scannedItem.itemName} updated successfully.`);
         setQuantity('');
-        setQuantityModalVisible(false);
+        setScannedItem(null);
       } catch (error) {
         Alert.alert('Error', 'Failed to update item quantity.');
       }
@@ -247,31 +257,26 @@ const PatientInfoScreen = ({ route, navigation }) => {
 
   const renderPrescriptions = () => {
     return prescriptions.map((prescription, index) => (
-      <View key={index} style={styles.prescriptionItem}>
-        <Text style={styles.prescriptionText}>
-          Name: {prescription.prescriptionName || 'N/A'}
-        </Text>
-        <Text style={styles.prescriptionText}>
-          Dosage: {prescription.dosage || 'N/A'}
-        </Text>
-        <Text style={styles.prescriptionText}>
-          Instruction: {prescription.instruction || 'N/A'}
-        </Text>
-        <Text style={styles.prescriptionText}>
-          Created At: {prescription.createdAt || 'N/A'}
-        </Text>
-      </View>
+      <Card key={index} style={styles.prescriptionItem}>
+        <Card.Content>
+          <Title style={styles.prescriptionTitle}>{prescription.prescriptionName || 'N/A'}</Title>
+          <Paragraph style={styles.prescriptionDetail}>Dosage: {prescription.dosage || 'N/A'}</Paragraph>
+          <Paragraph style={styles.prescriptionDetail}>Instruction: {prescription.instruction || 'N/A'}</Paragraph>
+          <Paragraph style={styles.prescriptionDetail}>Created At: {prescription.createdAt || 'N/A'}</Paragraph>
+        </Card.Content>
+      </Card>
     ));
   };
 
   const renderUsedItems = (usedItems) => {
     return Object.entries(usedItems).map(([key, item]) => (
-      <View key={key} style={styles.textAreaContainer}>
-        <Text style={styles.textArea}>
-          {item.name} ({item.quantity})
-        </Text>
-        <Text style={styles.timestampText}>Last Used: {item.lastUsed || 'N/A'}</Text>
-      </View>
+      <Card key={key} style={styles.usedItemCard}>
+        <Card.Content>
+          <Title style={styles.itemName}>{item.name}</Title>
+          <Paragraph>Quantity: {item.quantity}</Paragraph>
+          <Paragraph style={styles.timestampText}>Last Used: {item.lastUsed || 'N/A'}</Paragraph>
+        </Card.Content>
+      </Card>
     ));
   };
 
@@ -279,100 +284,138 @@ const PatientInfoScreen = ({ route, navigation }) => {
     <View style={styles.fullScreenContainer}>
       <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>Name</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-        />
-
-        <Text style={styles.label}>Date of Birth</Text>
-        <TouchableOpacity
-          style={styles.dateInput}
-          onPress={() => setShowDatePicker(true)}
-        >
-          <Text>{birth || 'Select Date'}</Text>
-        </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={birth ? new Date(birth) : new Date()}
-            mode="date"
-            display="default"
-            onChange={handleDateChange}
+        <Text style={styles.headerText}>Patient Information</Text>
+        
+        {/* Personal Information Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeader}>Personal Information</Text>
+          <TextInput
+            style={styles.input}
+            label="Name"
+            placeholder="Enter patient name"
+            value={name}
+            onChangeText={setName}
           />
-        )}
-
-        <Text style={styles.label}>Contact</Text>
-        <TextInput
-          style={styles.input}
-          value={contact}
-          onChangeText={setContact}
-        />
-
-        <Text style={styles.label}>Diagnosis</Text>
-        <TextInput
-          style={styles.input}
-          value={diagnosis}
-          onChangeText={setDiagnosis}
-        />
-
-        <Text style={styles.label}>Accommodation</Text>
-        <View style={styles.textAreaContainer}>
-          <Text style={styles.roomTypeText}>
-            {roomType || 'No Room Type Specified'}
-          </Text>
+          <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker(true)}>
+            <Text style={styles.datePickerText}>{birth || 'Select Date of Birth'}</Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={birth ? new Date(birth) : new Date()}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+            />
+          )}
+          <TextInput
+            style={styles.input}
+            label="Contact"
+            placeholder="Enter contact number"
+            value={contact}
+            onChangeText={setContact}
+          />
+          <TextInput
+            style={styles.input}
+            label="Diagnosis"
+            placeholder="Enter diagnosis"
+            value={diagnosis}
+            onChangeText={setDiagnosis}
+          />
+          <View style={styles.textAreaContainer}>
+            <Text style={styles.roomTypeText}>
+              Accommodation: {roomType || 'No Room Type Specified'}
+            </Text>
+          </View>
         </View>
-
-        <Text style={styles.label}>Supplies Used</Text>
-        <View style={styles.textAreaContainer}>
+        
+        {/* Inventory Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeader}>Inventory</Text>
+          <Text style={styles.label}>Supplies Used</Text>
           {renderUsedItems(suppliesUsed)}
-        </View>
-        <Button title="Scan Item for Supplies" onPress={() => handleScan('supplies')} />
-
-        <Text style={styles.label}>Medicines Used</Text>
-        <View style={styles.textAreaContainer}>
+          <Button
+            title="Scan Item for Supplies"
+            color="#4CAF50"
+            onPress={() => handleScan('supplies')}
+          />
+          <Text style={styles.label}>Medicines Used</Text>
           {renderUsedItems(medUse)}
+          <Button
+            title="Scan Item for Medicines"
+            color="#FF5722"
+            onPress={() => handleScan('medicines')}
+          />
         </View>
-        <Button title="Scan Item for Medicines" onPress={() => handleScan('medicines')} />
 
-        {!addPrescription ? (
-          <Button style={styles.buttons} title="Add Prescription" onPress={handleAddPrescription} />
-        ) : (
-          <View style={styles.prescriptionForm}>
-            <Text style={styles.formLabel}>Prescription Name:</Text>
-            <TextInput
-              style={[styles.input, errors.prescriptionName ? styles.errorInput : null]}
-              value={prescriptionName}
-              onChangeText={(text) => setPrescriptionName(text)}
+        {/* Scanned Item Preview */}
+        {scannedItem && (
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionHeader}>Scanned Item</Text>
+            <Card style={styles.scannedItemCard}>
+              <Card.Content>
+                <Title style={styles.itemName}>{scannedItem.itemName}</Title>
+                <Paragraph>Entered Quantity: {quantity ? quantity : 'Not Entered'}</Paragraph>
+                <Paragraph>Type: {scanningFor === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
+              </Card.Content>
+            </Card>
+            <Button
+              title="Save"
+              color="#4CAF50"
+              onPress={handleSaveScannedItem}
             />
-            {errors.prescriptionName && <Text style={styles.errorText}>{errors.prescriptionName}</Text>}
-
-            <Text style={styles.formLabel}>Dosage:</Text>
-            <TextInput
-              style={[styles.input, errors.dosage ? styles.errorInput : null]}
-              value={dosage}
-              onChangeText={(text) => setDosage(text)}
-            />
-            {errors.dosage && <Text style={styles.errorText}>{errors.dosage}</Text>}
-
-            <Text style={styles.formLabel}>Instruction:</Text>
-            <TextInput
-              style={[styles.input, errors.instruction ? styles.errorInput : null]}
-              value={instruction}
-              onChangeText={(text) => setInstruction(text)}
-            />
-            {errors.instruction && <Text style={styles.errorText}>{errors.instruction}</Text>}
-
-            <Button title={loading ? 'Adding...' : 'Add Prescription'} onPress={handlePrescriptionSubmit} disabled={loading} />
-            <Button title="Cancel" onPress={() => setAddPrescription(false)} />
           </View>
         )}
 
-        <Button title="View Prescription" onPress={fetchPrescriptions} />
+        {/* Prescription Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionHeader}>Prescriptions</Text>
+          {!addPrescription ? (
+            <Button
+              title="Add Prescription"
+              color="#2196F3"
+              onPress={handleAddPrescription}
+            />
+          ) : (
+            <View style={styles.prescriptionForm}>
+              <TextInput
+                style={[styles.input, errors.prescriptionName ? styles.errorInput : null]}
+                label="Prescription Name"
+                placeholder="Enter prescription name"
+                value={prescriptionName}
+                onChangeText={(text) => setPrescriptionName(text)}
+              />
+              {errors.prescriptionName && <Text style={styles.errorText}>{errors.prescriptionName}</Text>}
 
-        <Button title="Save" onPress={handleSave} />
+              <TextInput
+                style={[styles.input, errors.dosage ? styles.errorInput : null]}
+                label="Dosage"
+                placeholder="Enter dosage"
+                value={dosage}
+                onChangeText={(text) => setDosage(text)}
+              />
+              {errors.dosage && <Text style={styles.errorText}>{errors.dosage}</Text>}
+
+              <TextInput
+                style={[styles.input, errors.instruction ? styles.errorInput : null]}
+                label="Instruction"
+                placeholder="Enter instructions"
+                value={instruction}
+                onChangeText={(text) => setInstruction(text)}
+              />
+              {errors.instruction && <Text style={styles.errorText}>{errors.instruction}</Text>}
+
+              <Button title={loading ? 'Adding...' : 'Add Prescription'} onPress={handlePrescriptionSubmit} disabled={loading} />
+              <Button title="Cancel" onPress={() => setAddPrescription(false)} />
+            </View>
+          )}
+
+          <Button title="View Prescription" color="#673AB7" onPress={fetchPrescriptions} />
+        </View>
+
+        <Button title="Save" color="#4CAF50" onPress={handleSave} />
       </ScrollView>
 
+      {/* Barcode Scanner Modal */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View style={styles.modalContainer}>
           {scanning ? (
@@ -386,33 +429,49 @@ const PatientInfoScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      <Modal visible={quantityModalVisible} transparent={true} animationType="slide">
-        <View style={styles.quantityModalContainer}>
-          <View style={styles.quantityModalContent}>
-            <Text style={styles.modalLabel}>
-              Enter quantity for {scannedItem?.supplyName || scannedItem?.itemName}:
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={quantity}
-              onChangeText={setQuantity}
-              keyboardType="numeric"
-              placeholder="Enter quantity"
-            />
-            <Button title="Confirm" onPress={handleQuantityConfirm} />
-            <Button title="Cancel" onPress={() => setQuantityModalVisible(false)} />
-          </View>
+     {/* Quantity Input Modal */}
+<Modal visible={quantityModalVisible} transparent={true} animationType="slide">
+  <View style={styles.quantityModalContainer}>
+    <View style={styles.quantityModalContent}>
+      
+      {/* Scanned Item Preview */}
+      {scannedItem && (
+        <View style={styles.scannedItemContainer}>
+          <Text style={styles.modalLabel}>Scanned Item</Text>
+          <Card style={styles.scannedItemCard}>
+            <Card.Content>
+              <Title style={styles.itemName}>{scannedItem.itemName}</Title>
+              <Paragraph>Available Quantity: {scannedItem.quantity}</Paragraph>
+              <Paragraph>Type: {scanningFor === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
+            </Card.Content>
+          </Card>
         </View>
-      </Modal>
+      )}
+      
+      {/* Quantity Input Section */}
+      <Text style={styles.modalLabel}>
+        Enter quantity for {scannedItem?.supplyName || scannedItem?.itemName}:
+      </Text>
+      <TextInput
+        style={styles.input}
+        value={quantity}
+        onChangeText={setQuantity}
+        keyboardType="numeric"
+        placeholder="Enter quantity"
+      />
+                <Button title="Confirm" onPress={handleQuantityConfirm} />
+ 
+      <Button title="Cancel" onPress={() => setQuantityModalVisible(false)} />
+    </View>
+  </View>
+</Modal>
 
       {/* Prescription Modal */}
       <Modal visible={prescriptionModalVisible} transparent={true} animationType="slide">
         <View style={styles.prescriptionModalContainer}>
           <View style={styles.prescriptionModalContent}>
             <Text style={styles.modalLabel}>Prescriptions</Text>
-            <ScrollView>
-              {renderPrescriptions()}
-            </ScrollView>
+            <ScrollView>{renderPrescriptions()}</ScrollView>
             <Button title="Close" onPress={() => setPrescriptionModalVisible(false)} />
           </View>
         </View>
@@ -430,43 +489,60 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#F5F5F5',
   },
-  label: {
-    fontSize: 16,
-    marginVertical: 8,
+  headerText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  sectionContainer: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  sectionHeader: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
   },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 15,
+    backgroundColor: '#fff',
   },
-  dateInput: {
+  datePickerButton: {
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 15,
     justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: '#333',
   },
   textAreaContainer: {
     borderWidth: 1,
     borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 15,
     backgroundColor: '#f0f0f0',
-  },
-  textArea: {
-    minHeight: 20,
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  timestampText: {
-    fontSize: 14,
-    color: '#555',
   },
   roomTypeText: {
     fontSize: 16,
@@ -530,14 +606,56 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   prescriptionItem: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-    padding: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 15,
     marginVertical: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
   },
-  prescriptionText: {
+  prescriptionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  prescriptionDetail: {
     fontSize: 16,
+    color: '#666',
+  },
+  usedItemCard: {
+    marginVertical: 10,
+    padding: 15,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  itemName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
     marginBottom: 5,
+  },
+  timestampText: {
+    fontSize: 14,
+    color: '#777',
+  },
+  scannedItemCard: {
+    padding: 20,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+    marginBottom: 20,
   },
 });
 

@@ -106,7 +106,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start', // Ensures content starts at the top
   },
   cardContainer: {
-    marginBottom: 20, // Space below the UsageAnalyticsCard
+    marginBottom: 20,
+     // Space below the UsageAnalyticsCard
   },
   grid: {
     flexDirection: 'row',
