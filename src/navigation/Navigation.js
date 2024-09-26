@@ -12,6 +12,7 @@ import CreateAccountScreen from '../screens/CreateAccountScreen';
 import CSRdashboardScreen from '../screens/CSRdashboardScreen';
 import StockTransfer from '../screens/StockTransfer';
 import InventoryScanner from '../screens/InventoryScanner';
+import UsageAnalyticsScreen from '../screens/UsageAnalyticsScreen';
 
 
 
@@ -34,6 +35,8 @@ const Navigation = () => {
         <Stack.Screen name="CSRdashboardScreen" component={CSRdashboardScreen} /> 
         <Stack.Screen name="StockTransfer" component={StockTransfer} /> 
         <Stack.Screen name="InventoryScanner" component={InventoryScanner} />
+        <Stack.Screen name="UsageAnalyticsScreen" component={UsageAnalyticsScreen}
+        />
 
 
       </Stack.Navigator>

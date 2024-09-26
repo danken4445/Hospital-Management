@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
 import { Card, Title, Paragraph, Searchbar, Button } from 'react-native-paper';
 import { getDatabase, ref, onValue, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -12,6 +12,8 @@ const InventoryScanner = () => {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [customAlertVisible, setCustomAlertVisible] = useState(false);
+  const [alertContent, setAlertContent] = useState({});
 
   useEffect(() => {
     const db = getDatabase();
@@ -85,10 +87,11 @@ const InventoryScanner = () => {
       const suppliesSnapshot = await get(suppliesRef);
       if (suppliesSnapshot.exists()) {
         const suppliesData = suppliesSnapshot.val();
-        Alert.alert(
-          'Item Found',
-          `Supply Name: ${suppliesData.supplyName}\nBrand: ${suppliesData.brand}\nQuantity: ${suppliesData.quantity}\nStatus: ${suppliesData.status}`
-        );
+        setAlertContent({
+          title: 'Item Found',
+          message: `Supply Name: ${suppliesData.itemName}\nBrand: ${suppliesData.brand}\nQuantity: ${suppliesData.quantity}\nStatus: ${suppliesData.status}`,
+        });
+        setCustomAlertVisible(true);
         return;
       }
 
@@ -96,18 +99,27 @@ const InventoryScanner = () => {
       const medicinesSnapshot = await get(medicinesRef);
       if (medicinesSnapshot.exists()) {
         const medicinesData = medicinesSnapshot.val();
-        Alert.alert(
-          'Item Found',
-          `Medicine Name: ${medicinesData.itemName}\nQuantity: ${medicinesData.quantity}\nStatus: ${medicinesData.status}`
-        );
+        setAlertContent({
+          title: 'Item Found',
+          message: `Medicine Name: ${medicinesData.itemName}\nQuantity: ${medicinesData.quantity}\nStatus: ${medicinesData.status}`,
+        });
+        setCustomAlertVisible(true);
         return;
       }
 
       // If item is not found in both nodes
-      Alert.alert('Error', 'Item not found in inventory.');
+      setAlertContent({
+        title: 'Error',
+        message: 'Item not found in inventory.',
+      });
+      setCustomAlertVisible(true);
     } catch (error) {
       console.error('Error fetching item data:', error);
-      Alert.alert('Error', 'Failed to fetch item data.');
+      setAlertContent({
+        title: 'Error',
+        message: 'Failed to fetch item data.',
+      });
+      setCustomAlertVisible(true);
     }
   };
 
@@ -157,7 +169,7 @@ const InventoryScanner = () => {
 
       {/* Inventory List */}
       {loading ? (
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color="#7a0026" />
       ) : (
         <FlatList
           data={filteredInventory}
@@ -174,6 +186,7 @@ const InventoryScanner = () => {
           setScanning(true);
           setModalVisible(true);
         }}
+        style={styles.scanButton}
       >
         Scan QR Code
       </Button>
@@ -187,8 +200,26 @@ const InventoryScanner = () => {
               style={styles.barcodeScanner}
             />
           ) : (
-            <Button title="Close" onPress={() => setModalVisible(false)} />
+            <Button onPress={() => setModalVisible(false)}>Close</Button>
           )}
+        </View>
+      </Modal>
+
+      {/* Custom Alert Modal */}
+      <Modal visible={customAlertVisible} transparent={true} animationType="fade">
+        <View style={styles.alertModalContainer}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>{alertContent.title}</Text>
+            <Text style={styles.alertMessage}>{alertContent.message}</Text>
+            <Button
+              mode="contained"
+              onPress={() => setCustomAlertVisible(false)}
+              style={styles.alertButton}
+              labelStyle={styles.alertButtonText}
+            >
+              OK
+            </Button>
+          </View>
         </View>
       </Modal>
     </View>
@@ -203,13 +234,14 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     marginBottom: 15,
+    borderRadius: 8,
   },
   listContainer: {
     paddingBottom: 10,
   },
   card: {
     marginBottom: 10,
-    borderRadius: 10,
+    borderRadius: 12,
     elevation: 3,
     backgroundColor: '#fff',
   },
@@ -222,19 +254,64 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#7a0026',
   },
   label: {
     fontWeight: 'bold',
+    color: '#333',
+  },
+  scanButton: {
+    marginVertical: 20,
+    backgroundColor: '#7a0026',
+    borderRadius: 8,
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)', // Semi-transparent background
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   barcodeScanner: {
     width: '100%',
     height: '60%',
+  },
+  alertModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  alertBox: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  alertTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#7a0026',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  alertButton: {
+    backgroundColor: '#7a0026',
+    borderRadius: 8,
+  },
+  alertButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
 

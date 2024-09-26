@@ -15,11 +15,11 @@
     "slug": "HospitalInventorySystem",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/hospitalmanagementsys.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
+      "image": "./assets/hospitalmanagementsys.png",
+      "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
     "ios": {

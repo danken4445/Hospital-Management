@@ -58,7 +58,7 @@ const LoginScreen = ({ navigation }) => {
   return (
     <PaperProvider>
       <View style={styles.container}>
-        <Image source={require('../../assets/logo.png')} style={styles.logo} />
+        <Image source={require('../../assets/hospitalmanagementsys.png')} style={styles.logo} />
         <Text style={styles.title}>Staff Login</Text>
 
         <TextInput
@@ -120,6 +120,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 150,
     marginBottom: 10,
+    marginTop:24
   },
   title: {
     fontSize: 24,

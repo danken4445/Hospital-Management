@@ -56,8 +56,8 @@ const UsageAnalyticsCard = () => {
       name: itemName,
       quantity: itemUsage[itemName],
       color: getColor(index),
-      legendFontColor: '#333',
-      legendFontSize: 12,
+      legendFontColor: '#ffffff',
+      legendFontSize: 14,
     }));
 
     setPieChartData(pieData);
@@ -97,7 +97,7 @@ const UsageAnalyticsCard = () => {
               <PieChart
                 data={pieChartData}
                 width={screenWidth - 60}
-                height={220}
+                height={240}
                 chartConfig={chartConfig}
                 accessor={'quantity'}
                 backgroundColor={'transparent'}
@@ -112,14 +112,15 @@ const UsageAnalyticsCard = () => {
       );
     } else if (type === 'bar') {
       return (
-        <Card style={styles.card}>
+        <Card style={[styles.card, styles.barCard]}>
           <Card.Content>
             <Text style={styles.chartTitle}>Item-wise Usage</Text>
             {barChartData ? (
               <BarChart
                 data={barChartData}
                 width={screenWidth - 60}
-                height={250}
+                height={280}
+                //backgroundColor={}
                 chartConfig={chartConfig}
                 verticalLabelRotation={30}
                 fromZero
@@ -182,53 +183,58 @@ const chartConfig = {
   backgroundGradientFrom: '#f5f5f5',
   backgroundGradientTo: '#f5f5f5',
   decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+  color: (opacity = 1) => `rgba(122, 0, 38, ${opacity})`, // Color for chart elements
+  labelColor: (opacity = 1) => `rgba(122, 0, 38, ${opacity})`, // Color for labels
   style: {
-    borderRadius: 16,
+    borderRadius: 24,
   },
   propsForDots: {
     r: '6',
     strokeWidth: '2',
     stroke: '#ffa726',
+    
   },
 };
 
 const styles = StyleSheet.create({
   card: {
-    margin: 20,
-    borderRadius: 16,
-    elevation: 5,
-    backgroundColor: '#ffffff',
-    width: screenWidth - 40,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    marginTop: 44, // Increased margin between cards
+    backgroundColor: 'rgba(122, 0, 38, 0.7)', // Set your desired color and opacity here
+    elevation:0,
+    width: screenWidth - 30, // Adjusted width for better layout
+    marginHorizontal: 15,
+    borderRadius:24,
+    borderBottomLeftRadius:0,
+    borderBottomRightRadius:0 // Added horizontal margin for spacing between cards
+  },
+  barCard: {
+    marginBottom: 22,
+    paddingBottom:32, // Additional margin for bar chart card
   },
   chartTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: 'bold',
+    color: '#ffffff', // Updated color for title
     marginVertical: 15,
     textAlign: 'center',
   },
   noDataText: {
     fontSize: 16,
-    color: '#666',
+    color: '#ffffff',
     textAlign: 'center',
     marginVertical: 20,
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 15,
+    marginTop: -20, // Added margin above pagination
   },
   paginationDot: {
-    height: 12,
-    width: 12,
-    borderRadius: 6,
-    backgroundColor: '#333',
+    height: 10,
+    width: 10,
+    borderRadius: 5,
+    marginTop:-26,
+    backgroundColor: '#ffffff', // Updated pagination dot color
     marginHorizontal: 6,
   },
 });

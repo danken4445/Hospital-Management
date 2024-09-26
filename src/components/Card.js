@@ -7,7 +7,7 @@ const FeatureCard = ({ title, icon, onPress }) => {
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={onPress} style={styles.touchable}>
-        <Card mode="outlined" style={styles.card}>
+        <Card mode="outlined"  style={styles.card}>
           <Card.Content style={styles.content}>
             {/* Displaying the passed icon */}
             {icon && <Image source={icon} style={styles.icon} />}
@@ -21,7 +21,7 @@ const FeatureCard = ({ title, icon, onPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    margin: 20,
+    margin: 10,
     width: 150,
     height: 150,
   },
@@ -32,6 +32,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius:24,
+    borderColor: '#7a0026'
+  
   },
   content: {
     flex: 1,
@@ -46,6 +49,7 @@ const styles = StyleSheet.create({
   title: {
     textAlign: 'center',
     fontWeight: 'bold'
+
   },
 });
 
