@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView, Animated, TouchableOpacity } from 'react-native';
 import { Card } from 'react-native-paper';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 import { getDatabase, ref, onValue } from 'firebase/database';
 
 const screenWidth = Dimensions.get('window').width;
 
-const UsageAnalyticsCard = () => {
+const UsageAnalyticsCard = ({ onChartPress }) => {
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [pieChartData, setPieChartData] = useState([]);
   const [barChartData, setBarChartData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [scrollX] = useState(new Animated.Value(0));
 
   useEffect(() => {
@@ -26,10 +25,8 @@ const UsageAnalyticsCard = () => {
             ...historyData[key],
           }));
           setInventoryHistory(historyArray);
-          setLoading(false);
         } else {
           setInventoryHistory([]);
-          setLoading(false);
         }
       });
     };
@@ -42,7 +39,6 @@ const UsageAnalyticsCard = () => {
 
     const itemUsage = {};
 
-    // Calculate usage per item
     inventoryHistory.forEach((entry) => {
       if (itemUsage[entry.itemName]) {
         itemUsage[entry.itemName] += entry.quantity;
@@ -51,7 +47,6 @@ const UsageAnalyticsCard = () => {
       }
     });
 
-    // Prepare data for pie chart
     const pieData = Object.keys(itemUsage).map((itemName, index) => ({
       name: itemName,
       quantity: itemUsage[itemName],
@@ -62,7 +57,6 @@ const UsageAnalyticsCard = () => {
 
     setPieChartData(pieData);
 
-    // Prepare data for bar chart
     const labels = Object.keys(itemUsage);
     const quantities = Object.values(itemUsage);
 
@@ -78,7 +72,6 @@ const UsageAnalyticsCard = () => {
     }
   }, [inventoryHistory]);
 
-  // Function to get color for each item in the pie chart
   const getColor = (index) => {
     const colors = [
       '#4CAF50', '#FF5722', '#FFC107', '#2196F3', '#9C27B0',
@@ -88,50 +81,57 @@ const UsageAnalyticsCard = () => {
   };
 
   const renderSlide = (type) => {
+    if (!onChartPress || typeof onChartPress !== 'function') {
+      console.error('Invalid onChartPress prop');
+      return null;
+    }
     if (type === 'pie') {
       return (
-        <Card style={styles.card}>
-          <Card.Content>
-            <Text style={styles.chartTitle}>Item Usage Overview</Text>
-            {pieChartData.length ? (
-              <PieChart
-                data={pieChartData}
-                width={screenWidth - 60}
-                height={240}
-                chartConfig={chartConfig}
-                accessor={'quantity'}
-                backgroundColor={'transparent'}
-                paddingLeft={'15'}
-                absolute
-              />
-            ) : (
-              <Text style={styles.noDataText}>No data available for the pie chart.</Text>
-            )}
-          </Card.Content>
-        </Card>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => onChartPress('pie')}>
+          <Card style={styles.card}>
+            <Card.Content>
+              <Text style={styles.chartTitle}>Item Usage Overview</Text>
+              {pieChartData.length ? (
+                <PieChart
+                  data={pieChartData}
+                  width={screenWidth - 60}
+                  height={240}
+                  chartConfig={chartConfig}
+                  accessor={'quantity'}
+                  backgroundColor={'transparent'}
+                  paddingLeft={'15'}
+                  absolute
+                />
+              ) : (
+                <Text style={styles.noDataText}>No data available for the pie chart.</Text>
+              )}
+            </Card.Content>
+          </Card>
+        </TouchableOpacity>
       );
     } else if (type === 'bar') {
       return (
-        <Card style={[styles.card, styles.barCard]}>
-          <Card.Content>
-            <Text style={styles.chartTitle}>Item-wise Usage</Text>
-            {barChartData ? (
-              <BarChart
-                data={barChartData}
-                width={screenWidth - 60}
-                height={280}
-                //backgroundColor={}
-                chartConfig={chartConfig}
-                verticalLabelRotation={30}
-                fromZero
-                showBarTops={false}
-                showValuesOnTopOfBars={true}
-              />
-            ) : (
-              <Text style={styles.noDataText}>No data available for the bar chart.</Text>
-            )}
-          </Card.Content>
-        </Card>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => onChartPress('bar')}>
+          <Card style={[styles.card, styles.barCard]}>
+            <Card.Content>
+              <Text style={styles.chartTitle}>Item-wise Usage</Text>
+              {barChartData ? (
+                <BarChart
+                  data={barChartData}
+                  width={screenWidth - 60}
+                  height={280}
+                  chartConfig={chartConfig}
+                  verticalLabelRotation={30}
+                  fromZero
+                  showBarTops={false}
+                  showValuesOnTopOfBars={true}
+                />
+              ) : (
+                <Text style={styles.noDataText}>No data available for the bar chart.</Text>
+              )}
+            </Card.Content>
+          </Card>
+        </TouchableOpacity>
       );
     }
   };
@@ -183,8 +183,8 @@ const chartConfig = {
   backgroundGradientFrom: '#f5f5f5',
   backgroundGradientTo: '#f5f5f5',
   decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(122, 0, 38, ${opacity})`, // Color for chart elements
-  labelColor: (opacity = 1) => `rgba(122, 0, 38, ${opacity})`, // Color for labels
+  color: (opacity = 1) => `rgba(122, 0, 38, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(122, 0, 38, ${opacity})`,
   style: {
     borderRadius: 24,
   },
@@ -192,29 +192,27 @@ const chartConfig = {
     r: '6',
     strokeWidth: '2',
     stroke: '#ffa726',
-    
   },
 };
 
 const styles = StyleSheet.create({
   card: {
-    marginTop: 44, // Increased margin between cards
-    backgroundColor: 'rgba(122, 0, 38, 0.7)', // Set your desired color and opacity here
-    elevation:0,
-    width: screenWidth - 30, // Adjusted width for better layout
+    marginTop: 44,
+    backgroundColor: 'rgba(122, 0, 38, 0.7)',
+    width: screenWidth - 30,
     marginHorizontal: 15,
-    borderRadius:24,
-    borderBottomLeftRadius:0,
-    borderBottomRightRadius:0 // Added horizontal margin for spacing between cards
+    borderRadius: 24,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   barCard: {
     marginBottom: 22,
-    paddingBottom:32, // Additional margin for bar chart card
+    paddingBottom: 32,
   },
   chartTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#ffffff', // Updated color for title
+    color: '#ffffff',
     marginVertical: 15,
     textAlign: 'center',
   },
@@ -227,14 +225,14 @@ const styles = StyleSheet.create({
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: -20, // Added margin above pagination
+    marginTop: -20,
   },
   paginationDot: {
     height: 10,
     width: 10,
     borderRadius: 5,
-    marginTop:-26,
-    backgroundColor: '#ffffff', // Updated pagination dot color
+    marginTop: -26,
+    backgroundColor: '#ffffff',
     marginHorizontal: 6,
   },
 });

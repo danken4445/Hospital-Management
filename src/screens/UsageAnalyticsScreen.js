@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, Modal, TouchableOpacity } from 'react-native';
-import { Card, Title, Paragraph, Divider, IconButton, Button } from 'react-native-paper';
+import { Card, Title, Divider, IconButton, Button } from 'react-native-paper';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ const AnalyticsScreen = () => {
   const [suppliesData, setSuppliesData] = useState([]);
   const [selectedChart, setSelectedChart] = useState(null); // State for selected chart
   const [modalVisible, setModalVisible] = useState(false); // State for chart modal
+
   useEffect(() => {
     const lockLandscape = async () => {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -88,7 +89,7 @@ const AnalyticsScreen = () => {
   };
 
   const renderPieChart = (data, title, colors) => {
-    if (data.length === 0) return <Text style={styles.noDataText}>No data available for {title}.</Text>;
+    if (!data || data.length === 0) return <Text style={styles.noDataText}>No data available for {title}.</Text>;
 
     const pieData = data.map((item, index) => ({
       name: item.itemName,
@@ -115,7 +116,7 @@ const AnalyticsScreen = () => {
   };
 
   const renderBarChart = (data, title, color) => {
-    if (data.length === 0) return <Text style={styles.noDataText}>No data available for {title}.</Text>;
+    if (!data || data.length === 0) return <Text style={styles.noDataText}>No data available for {title}.</Text>;
 
     const itemUsage = data.reduce((acc, entry) => {
       if (acc[entry.itemName]) {
@@ -155,6 +156,10 @@ const AnalyticsScreen = () => {
   };
 
   const openChartModal = (type, data, title) => {
+    if (!data || data.length === 0) {
+      console.warn(`No data available for ${title}`);
+      return;
+    }
     setSelectedChart({ type, data, title });
     setModalVisible(true);
   };
@@ -170,7 +175,7 @@ const AnalyticsScreen = () => {
           <Card style={styles.modalCard}>
             <Card.Title title={title} />
             <Card.Content>
-              {type === 'pie' && (
+              {type === 'pie' && data.length > 0 && (
                 <PieChart
                   data={data}
                   width={screenWidth * 1}
@@ -182,7 +187,7 @@ const AnalyticsScreen = () => {
                   absolute
                 />
               )}
-              {type === 'bar' && (
+              {type === 'bar' && data.labels.length > 0 && (
                 <BarChart
                   data={data}
                   width={screenWidth * 0.85}
@@ -209,7 +214,6 @@ const AnalyticsScreen = () => {
         <Card.Content>
           <Title style={styles.title}>Usage Analytics</Title>
 
-          {/* Enhanced Time Frame Selector */}
           <View style={styles.timeFrameContainer}>
             <Button
               mode={timeFrame === 'monthly' ? 'contained' : 'outlined'}
@@ -236,7 +240,6 @@ const AnalyticsScreen = () => {
 
           <Divider style={styles.divider} />
 
-          {/* Summary Section */}
           <View style={styles.summaryContainer}>
             <View style={styles.summaryBox}>
               <IconButton icon="pill" size={30} color="#2196F3" />
@@ -248,7 +251,6 @@ const AnalyticsScreen = () => {
             </View>
           </View>
 
-          {/* Medicine Charts */}
           <View style={styles.chartContainer}>
             <View style={styles.chartHeader}>
               <FontAwesome5 name="pills" size={24} color="#2196F3" />
@@ -265,7 +267,6 @@ const AnalyticsScreen = () => {
             {renderPieChart(medicinesData, 'Medicine Breakdown', ['#4CAF50', '#FF5722', '#FFC107', '#2196F3', '#9C27B0'])}
           </View>
 
-          {/* Supplies Charts */}
           <View style={styles.chartContainer}>
             <View style={styles.chartHeader}>
               <FontAwesome5 name="box" size={24} color="#4CAF50" />
@@ -284,7 +285,6 @@ const AnalyticsScreen = () => {
         </Card.Content>
       </Card>
 
-      {/* Render Chart Modal */}
       {renderChartModal()}
     </ScrollView>
   );
@@ -312,7 +312,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginVertical: 10,
-    
   },
   timeFrameButton: {
     flex: 1,
@@ -335,9 +334,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   summaryBox: {
-    flexDirection: 'col',
+    flexDirection: 'column',
     alignItems: 'center',
-    padding: 34
+    padding: 34,
   },
   summaryText: {
     fontSize: 16,

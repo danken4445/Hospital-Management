@@ -9,10 +9,15 @@ import PatientInfoScreen from '../screens/PatientInfoScreen';
 import InventoryHistory from '../screens/InventoryHistory'; 
 import InventoryScreen from '../screens/InventoryScreen'; 
 import CreateAccountScreen from '../screens/CreateAccountScreen';
-import CSRdashboardScreen from '../screens/CSRdashboardScreen';
-import StockTransfer from '../screens/StockTransfer';
 import InventoryScanner from '../screens/InventoryScanner';
 import UsageAnalyticsScreen from '../screens/UsageAnalyticsScreen';
+
+//CSR SCREENS
+import CSRdashboardScreen from '../screens/CSRscreens/CSRdashboardScreen';
+import OverallInventory from './../screens/CSRscreens/OverallInventoryScreen';
+import CSRinventoryHistory from './../screens/CSRscreens/CSRinventoryHistory';
+import LocalInventory from './../screens/CSRscreens/LocalInventory';
+import StockTransfer from './../screens/CSRscreens/StockTransfer';
 
 
 
@@ -33,10 +38,15 @@ const Navigation = () => {
         <Stack.Screen name="InventoryHistory" component={InventoryHistory} /> 
         <Stack.Screen name="InventoryScreen" component={InventoryScreen} /> 
         <Stack.Screen name="CSRdashboardScreen" component={CSRdashboardScreen} /> 
-        <Stack.Screen name="StockTransfer" component={StockTransfer} /> 
         <Stack.Screen name="InventoryScanner" component={InventoryScanner} />
-        <Stack.Screen name="UsageAnalyticsScreen" component={UsageAnalyticsScreen}
-        />
+        <Stack.Screen name="UsageAnalyticsScreen" component={UsageAnalyticsScreen}/>
+        <Stack.Screen name="Overallinventory" component={OverallInventory}/>
+        <Stack.Screen name="CSRinventoryHistory" component={CSRinventoryHistory}/>
+        <Stack.Screen name="LocalInventoryCSR" component={LocalInventory}/>
+        <Stack.Screen name="StockTransfer" component={StockTransfer}/>
+
+
+      
 
 
       </Stack.Navigator>

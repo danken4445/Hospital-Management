@@ -1,12 +1,12 @@
 import React from 'react';
 import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, ImageBackground, Platform } from 'react-native';
-import FeatureCard from '../components/Card';
-import UsageAnalyticsCard from '../components/UsageAnalyticsCard';
+import FeatureCard from './../../components/Card';
+import UsageAnalyticsCard from './../../components/UsageAnalyticsCard';
 import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
 
-const Dashboard = ({ navigation }) => {
+const CSRdashboard = ({ navigation }) => {
   const handlePatientScannerPress = () => {
     Toast.show({
       type: 'success',
@@ -40,7 +40,7 @@ const Dashboard = ({ navigation }) => {
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('InventoryScreen');
+    navigation.navigate('LocalInventoryCSR');
   };
 
   const handleUsageAnalyticsPress = (chartType) => {
@@ -54,9 +54,20 @@ const Dashboard = ({ navigation }) => {
     });
     navigation.navigate('UsageAnalyticsScreen', { chartType });
   };
+  const handleStockTransferPress = (chartType) => {
+    Toast.show({
+      type: 'success',
+      position: 'bottom',
+      text1: `Navigating to Usage Analytics for ${chartType}`,
+      visibilityTime: 3000,
+      autoHide: true,
+      bottomOffset: 40,
+    });
+    navigation.navigate('StockTransfer', { chartType });
+  };
 
   return (
-    <ImageBackground source={require('../../assets/background.png')} style={styles.imageBackground}>
+    <ImageBackground source={require('../../../assets/background.png')} style={styles.imageBackground}>
       <SafeAreaView style={styles.safeAreaView}>
         <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
         <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
@@ -67,33 +78,30 @@ const Dashboard = ({ navigation }) => {
             <View style={styles.grid}>
               <FeatureCard
                 title="Inventory"
-                icon={require('../../assets/inventory.png')}
+                icon={require('../../../assets/inventory.png')}
                 onPress={handleInventoryScreenPress}
               />
               <FeatureCard
                 title="Create an Account"
-                icon={require('../../assets/inventoryOverall.png')}
-                onPress={() => navigation.navigate('CreateAccountScreen')}
+                icon={require('../../../assets/inventoryOverall.png')}
+                onPress={() => navigation.navigate('Overallinventory')}
               />
-              <FeatureCard
-                title="Patient Scanner"
-                icon={require('../../assets/patientScanner.png')}
-                onPress={handlePatientScannerPress}
-              />
+              
               <FeatureCard
                 title="Inventory Scanner"
-                icon={require('../../assets/inventoryScanner.png')}
+                icon={require('../../../assets/inventoryScanner.png')}
                 onPress={() => navigation.navigate('InventoryScanner')}
               />
-              <FeatureCard
-                title="Access Department"
-                icon={require('../../assets/accessDept.png')}
-                onPress={() => navigation.navigate('AccessDepartment')}
-              />
+             
               <FeatureCard
                 title="Inventory History"
-                icon={require('../../assets/inventoryHistory.png')}
+                icon={require('../../../assets/inventoryHistory.png')}
                 onPress={handleInventoryHistoryPress}
+              />
+              <FeatureCard
+                title="Stocks Transfer"
+                icon={require('../../../assets/inventoryHistory.png')}
+                onPress={handleStockTransferPress}
               />
             </View>
           </View>
@@ -145,4 +153,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Dashboard;
+export default CSRdashboard;
