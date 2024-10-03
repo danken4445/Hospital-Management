@@ -1,44 +1,119 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { getDatabase, ref, onValue } from 'firebase/database';
+import { Card } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
 
 const OverallInventory = () => {
-  const [overallInventory, setOverallInventory] = useState([]);
+  const [overallSupplies, setOverallSupplies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredSupplies, setFilteredSupplies] = useState([]);
+  const navigation = useNavigation();
 
   useEffect(() => {
     const db = getDatabase();
-    const overallInventoryRef = ref(db, 'csr/overallInventory');
+    const departmentsRef = ref(db, 'departments');
 
-    onValue(overallInventoryRef, (snapshot) => {
+    onValue(departmentsRef, (snapshot) => {
       if (snapshot.exists()) {
-        const inventoryData = snapshot.val();
-        const inventoryArray = Object.keys(inventoryData).map((key) => ({
-          name: key,
-          quantity: inventoryData[key],
+        const departmentsData = snapshot.val();
+        const supplyTotals = {};
+
+        for (const deptKey in departmentsData) {
+          const department = departmentsData[deptKey];
+          if (department.localSupplies) {
+            for (const supplyKey in department.localSupplies) {
+              const supply = department.localSupplies[supplyKey];
+
+              if (supplyTotals[supply.itemName]) {
+                supplyTotals[supply.itemName].totalQuantity += supply.quantity;
+                supplyTotals[supply.itemName].departments.push({
+                  departmentName: deptKey,
+                  quantity: supply.quantity,
+                  brand: supply.brand,
+                });
+              } else {
+                supplyTotals[supply.itemName] = {
+                  totalQuantity: supply.quantity,
+                  brand: supply.brand,
+                  departments: [
+                    {
+                      departmentName: deptKey,
+                      quantity: supply.quantity,
+                      brand: supply.brand,
+                    },
+                  ],
+                };
+              }
+            }
+          }
+        }
+
+        const supplyArray = Object.keys(supplyTotals).map((itemName) => ({
+          itemName,
+          totalQuantity: supplyTotals[itemName].totalQuantity,
+          brandName: supplyTotals[itemName].brand,
+          departments: supplyTotals[itemName].departments,
         }));
-        setOverallInventory(inventoryArray);
+
+        setOverallSupplies(supplyArray);
+        setFilteredSupplies(supplyArray);
       } else {
-        setOverallInventory([]);
+        setOverallSupplies([]);
+        setFilteredSupplies([]);
       }
+
       setLoading(false);
     });
   }, []);
 
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+
+    if (query === '') {
+      setFilteredSupplies(overallSupplies);
+    } else {
+      const filteredData = overallSupplies.filter((item) =>
+        item.itemName.toLowerCase().includes(query.toLowerCase())
+      );
+      setFilteredSupplies(filteredData);
+    }
+  };
+
+  const navigateToSupplyDetails = (supply) => {
+    navigation.navigate('SupplyDetails', { supply });
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Overall Inventory</Text>
+
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchBar}
+        placeholder="Search for supplies..."
+        value={searchQuery}
+        onChangeText={handleSearch}
+      />
+
       {loading ? (
-        <ActivityIndicator size="large" color="#7a0026" />
+        <ActivityIndicator size="large" color="#00796b" />
       ) : (
         <FlatList
-          data={overallInventory}
+          data={filteredSupplies}
           renderItem={({ item }) => (
-            <View style={styles.item}>
-              <Text style={styles.itemText}>{item.name}: {item.quantity}</Text>
-            </View>
+            <TouchableOpacity onPress={() => navigateToSupplyDetails(item)}>
+              <Card style={styles.card}>
+                <View style={styles.cardContent}>
+                  <Text style={styles.itemName}>{item.itemName}</Text>
+                  <Text style={styles.itemDetails}>Total: {item.totalQuantity} units</Text>
+                  <Text style={styles.brandDetails}>Brand: {item.brandName}</Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
           )}
-          keyExtractor={(item) => item.name}
+          keyExtractor={(item) => item.itemName}
         />
       )}
     </View>
@@ -52,20 +127,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 15,
     textAlign: 'center',
+    color: '#00796b',
   },
-  item: {
-    padding: 15,
-    backgroundColor: '#e9ecef',
+  searchBar: {
+    height: 40,
+    borderColor: '#ddd',
+    borderWidth: 1,
     borderRadius: 8,
-    marginBottom: 10,
+    paddingHorizontal: 10,
+    marginBottom: 15,
+    backgroundColor: '#ffffff',
   },
-  itemText: {
-    fontSize: 18,
-    fontWeight: '500',
+  card: {
+    backgroundColor: '#ffffff',
+    marginBottom: 12,
+    borderRadius: 10,
+    elevation: 3,
+  },
+  cardContent: {
+    padding: 15,
+  },
+  itemName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#00796b',
+    marginBottom: 8,
+  },
+  itemDetails: {
+    fontSize: 16,
+    color: '#424242',
+  },
+  brandDetails: {
+    fontSize: 14,
+    color: '#757575',
+    marginTop: 4,
   },
 });
 

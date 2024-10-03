@@ -18,7 +18,7 @@ import OverallInventory from './../screens/CSRscreens/OverallInventoryScreen';
 import CSRinventoryHistory from './../screens/CSRscreens/CSRinventoryHistory';
 import LocalInventory from './../screens/CSRscreens/LocalInventory';
 import StockTransfer from './../screens/CSRscreens/StockTransfer';
-
+import SupplyDetails from '../screens/CSRscreens/SupplyDetails';
 
 
 const Stack = createStackNavigator();
@@ -26,7 +26,7 @@ const Stack = createStackNavigator();
 const Navigation = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="LoginScreen"
+      <Stack.Navigator initialRouteName="Dashboard"
         screenOptions={{ headerShown: false }} // Hides header for all screens
 >
         
@@ -44,6 +44,8 @@ const Navigation = () => {
         <Stack.Screen name="CSRinventoryHistory" component={CSRinventoryHistory}/>
         <Stack.Screen name="LocalInventoryCSR" component={LocalInventory}/>
         <Stack.Screen name="StockTransfer" component={StockTransfer}/>
+        <Stack.Screen name="SupplyDetails" component={SupplyDetails}/>
+
 
 
       

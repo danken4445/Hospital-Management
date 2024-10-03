@@ -35,7 +35,7 @@ const CSRdashboard = ({ navigation }) => {
     Toast.show({
       type: 'success',
       position: 'bottom',
-      text1: 'Navigating to Inventory Screen',
+      text1: 'Navigating to Inventory Screen1',
       visibilityTime: 3000,
       autoHide: true,
       bottomOffset: 40,
@@ -82,7 +82,7 @@ const CSRdashboard = ({ navigation }) => {
                 onPress={handleInventoryScreenPress}
               />
               <FeatureCard
-                title="Create an Account"
+                title="Overall Inventory"
                 icon={require('../../../assets/inventoryOverall.png')}
                 onPress={() => navigation.navigate('Overallinventory')}
               />

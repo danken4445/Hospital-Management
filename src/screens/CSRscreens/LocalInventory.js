@@ -14,7 +14,7 @@ const CSRInventoryScreen = () => {
 
   useEffect(() => {
     const db = getDatabase();
-    const csrInventoryRef = ref(db, 'departments/CSR/inventory');
+    const csrInventoryRef = ref(db, 'departments/CSR/localSupplies');
 
     const fetchData = () => {
       onValue(csrInventoryRef, (snapshot) => {
@@ -22,7 +22,7 @@ const CSRInventoryScreen = () => {
           const csrData = snapshot.val();
           const inventoryArray = Object.keys(csrData).map((key) => ({
             id: key,
-            name: csrData[key].name,
+            name: csrData[key].itemName,
             quantity: csrData[key].quantity,
             type: 'Supply',
           }));

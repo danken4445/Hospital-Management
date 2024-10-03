@@ -21,7 +21,7 @@ const FeatureCard = ({ title, icon, onPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    margin: 10,
+    margin: 4,
     width: 150,
     height: 150,
   },
