@@ -99,7 +99,7 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
                   chartConfig={chartConfig}
                   accessor={'quantity'}
                   backgroundColor={'transparent'}
-                  paddingLeft={'15'}
+                  paddingLeft={'18'}
                   absolute
                 />
               ) : (

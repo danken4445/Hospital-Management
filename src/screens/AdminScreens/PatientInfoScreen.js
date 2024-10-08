@@ -19,7 +19,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
   const [quantityModalVisible, setQuantityModalVisible] = useState(false);
   const [scanningFor, setScanningFor] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [scannedItem, setScannedItem] = useState(null);
+  const [scannedItems, setScannedItems] = useState([]); // Changed to array to store all scanned items
   const [quantity, setQuantity] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [addPrescription, setAddPrescription] = useState(false);
@@ -88,7 +88,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
 
       if (snapshot.exists()) {
         const itemData = snapshot.val();
-        setScannedItem({ ...itemData, id: data });
+        setScannedItems(prevItems => [...prevItems, { ...itemData, id: data }]); // Add scanned item to array
         setQuantityModalVisible(true);
       } else {
         Alert.alert('Error', 'Item not found in inventory.');
@@ -121,14 +121,13 @@ const PatientInfoScreen = ({ route, navigation }) => {
   };
 
   const handleQuantityConfirm = () => {
-    // Confirm the quantity but do not update the database yet
     const quantityToUse = parseInt(quantity, 10);
     if (isNaN(quantityToUse) || quantityToUse <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
 
-    setQuantityModalVisible(false); // Hide the modal to show the save button
+    setQuantityModalVisible(false);
   };
 
   const handleSaveScannedItem = async () => {
@@ -141,13 +140,13 @@ const PatientInfoScreen = ({ route, navigation }) => {
     const db = getDatabase();
     let itemRef;
     if (scanningFor === 'supplies') {
-      itemRef = ref(db, `supplies/${scannedItem.id}`);
+      itemRef = ref(db, `supplies/${scannedItems[scannedItems.length - 1].id}`);
     } else if (scanningFor === 'medicines') {
-      itemRef = ref(db, `medicine/${scannedItem.id}`);
+      itemRef = ref(db, `medicine/${scannedItems[scannedItems.length - 1].id}`);
     }
 
-    if (scannedItem.quantity >= quantityToUse) {
-      const updatedQuantity = scannedItem.quantity - quantityToUse;
+    if (scannedItems[scannedItems.length - 1].quantity >= quantityToUse) {
+      const updatedQuantity = scannedItems[scannedItems.length - 1].quantity - quantityToUse;
       try {
         await update(itemRef, { quantity: updatedQuantity });
 
@@ -156,116 +155,33 @@ const PatientInfoScreen = ({ route, navigation }) => {
         if (scanningFor === 'supplies') {
           setSuppliesUsed((prev) => ({
             ...prev,
-            [scannedItem.id]: {
-              name: scannedItem.itemName,
-              quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
+            [scannedItems[scannedItems.length - 1].id]: {
+              name: scannedItems[scannedItems.length - 1].itemName,
+              quantity: (prev[scannedItems[scannedItems.length - 1].id]?.quantity || 0) + quantityToUse,
               lastUsed: timestamp,
             },
           }));
         } else if (scanningFor === 'medicines') {
           setMedUse((prev) => ({
             ...prev,
-            [scannedItem.id]: {
-              name: scannedItem.itemName,
-              quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
+            [scannedItems[scannedItems.length - 1].id]: {
+              name: scannedItems[scannedItems.length - 1].itemName,
+              quantity: (prev[scannedItems[scannedItems.length - 1].id]?.quantity || 0) + quantityToUse,
               lastUsed: timestamp,
             },
           }));
         }
 
-        await logInventoryHistory(scannedItem.itemName, quantityToUse, scanningFor);
+        await logInventoryHistory(scannedItems[scannedItems.length - 1].itemName, quantityToUse, scanningFor);
 
-        Alert.alert('Success', `Quantity of ${scannedItem.itemName} updated successfully.`);
+        Alert.alert('Success', `Quantity of ${scannedItems[scannedItems.length - 1].itemName} updated successfully.`);
         setQuantity('');
-        setScannedItem(null);
       } catch (error) {
         Alert.alert('Error', 'Failed to update item quantity.');
       }
     } else {
       Alert.alert('Error', 'Insufficient quantity in inventory.');
     }
-  };
-
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setBirth(selectedDate.toISOString().split('T')[0]);
-    }
-  };
-
-  const handleAddPrescription = () => {
-    setAddPrescription(true);
-    setPrescriptionName('');
-    setDosage('');
-    setInstruction('');
-    setErrors({});
-  };
-
-  const handlePrescriptionSubmit = async () => {
-    const newErrors = {};
-    if (!prescriptionName) newErrors.prescriptionName = 'Prescription name is required.';
-    if (!dosage) newErrors.dosage = 'Dosage is required.';
-    if (!instruction) newErrors.instruction = 'Instruction is required.';
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setLoading(true);
-
-    const newPrescription = {
-      prescriptionName,
-      dosage,
-      instruction,
-      createdAt: new Date().toISOString(),
-    };
-
-    try {
-      const db = getDatabase();
-      const prescriptionRef = ref(db, `patient/${patientData.qrData}/prescriptions`);
-      const newPrescriptionRef = push(prescriptionRef);
-      await update(newPrescriptionRef, newPrescription);
-
-      Alert.alert('Success', 'Prescription added successfully!');
-      setAddPrescription(false);
-    } catch (error) {
-      console.error('Error adding prescription:', error);
-      Alert.alert('Error', 'Failed to add prescription.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPrescriptions = async () => {
-    const db = getDatabase();
-    const prescriptionRef = ref(db, `patient/${patientData.qrData}/prescriptions`);
-
-    try {
-      const snapshot = await get(prescriptionRef);
-      if (snapshot.exists()) {
-        setPrescriptions(Object.values(snapshot.val()));
-        setPrescriptionModalVisible(true);
-      } else {
-        setPrescriptions([]);
-        Alert.alert('No Prescriptions', 'No prescriptions found for this patient.');
-      }
-    } catch (error) {
-      console.error('Error fetching prescriptions:', error);
-      Alert.alert('Error', 'Failed to fetch prescriptions.');
-    }
-  };
-
-  const renderPrescriptions = () => {
-    return prescriptions.map((prescription, index) => (
-      <Card key={index} style={styles.prescriptionItem}>
-        <Card.Content>
-          <Title style={styles.prescriptionTitle}>{prescription.prescriptionName || 'N/A'}</Title>
-          <Paragraph style={styles.prescriptionDetail}>Dosage: {prescription.dosage || 'N/A'}</Paragraph>
-          <Paragraph style={styles.prescriptionDetail}>Instruction: {prescription.instruction || 'N/A'}</Paragraph>
-          <Paragraph style={styles.prescriptionDetail}>Created At: {prescription.createdAt || 'N/A'}</Paragraph>
-        </Card.Content>
-      </Card>
-    ));
   };
 
   const renderUsedItems = (usedItems) => {
@@ -275,6 +191,18 @@ const PatientInfoScreen = ({ route, navigation }) => {
           <Title style={styles.itemName}>{item.name}</Title>
           <Paragraph>Quantity: {item.quantity}</Paragraph>
           <Paragraph style={styles.timestampText}>Last Used: {item.lastUsed || 'N/A'}</Paragraph>
+        </Card.Content>
+      </Card>
+    ));
+  };
+
+  const renderScannedItems = () => {
+    return scannedItems.map((item, index) => (
+      <Card key={index} style={styles.scannedItemCard}>
+        <Card.Content>
+          <Title style={styles.itemName}>{item.itemName}</Title>
+          <Paragraph>Quantity: {item.quantity}</Paragraph>
+          <Paragraph>Type: {scanningFor === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
         </Card.Content>
       </Card>
     ));
@@ -347,17 +275,11 @@ const PatientInfoScreen = ({ route, navigation }) => {
           />
         </View>
 
-        {/* Scanned Item Preview */}
-        {scannedItem && (
+        {/* Scanned Items Preview */}
+        {scannedItems.length > 0 && (
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionHeader}>Scanned Item</Text>
-            <Card style={styles.scannedItemCard}>
-              <Card.Content>
-                <Title style={styles.itemName}>{scannedItem.itemName}</Title>
-                <Paragraph>Entered Quantity: {quantity ? quantity : 'Not Entered'}</Paragraph>
-                <Paragraph>Type: {scanningFor === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
-              </Card.Content>
-            </Card>
+            <Text style={styles.sectionHeader}>Scanned Items</Text>
+            {renderScannedItems()}
             <Button
               title="Save"
               color="#4CAF50"
@@ -365,52 +287,6 @@ const PatientInfoScreen = ({ route, navigation }) => {
             />
           </View>
         )}
-
-        {/* Prescription Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionHeader}>Prescriptions</Text>
-          {!addPrescription ? (
-            <Button
-              title="Add Prescription"
-              color="#2196F3"
-              onPress={handleAddPrescription}
-            />
-          ) : (
-            <View style={styles.prescriptionForm}>
-              <TextInput
-                style={[styles.input, errors.prescriptionName ? styles.errorInput : null]}
-                label="Prescription Name"
-                placeholder="Enter prescription name"
-                value={prescriptionName}
-                onChangeText={(text) => setPrescriptionName(text)}
-              />
-              {errors.prescriptionName && <Text style={styles.errorText}>{errors.prescriptionName}</Text>}
-
-              <TextInput
-                style={[styles.input, errors.dosage ? styles.errorInput : null]}
-                label="Dosage"
-                placeholder="Enter dosage"
-                value={dosage}
-                onChangeText={(text) => setDosage(text)}
-              />
-              {errors.dosage && <Text style={styles.errorText}>{errors.dosage}</Text>}
-
-              <TextInput
-                style={[styles.input, errors.instruction ? styles.errorInput : null]}
-                label="Instruction"
-                placeholder="Enter instructions"
-                value={instruction}
-                onChangeText={(text) => setInstruction(text)}
-              />
-              {errors.instruction && <Text style={styles.errorText}>{errors.instruction}</Text>}
-
-              <Button title={loading ? 'Adding...' : 'Add Prescription'} onPress={handlePrescriptionSubmit} disabled={loading} />
-              <Button title="Cancel" onPress={() => setAddPrescription(false)} />
-            </View>
-          )}
-
-          <Button title="View Prescription" color="#673AB7" onPress={fetchPrescriptions} />
-        </View>
 
         <Button title="Save" color="#4CAF50" onPress={handleSave} />
       </ScrollView>
@@ -430,49 +306,19 @@ const PatientInfoScreen = ({ route, navigation }) => {
       </Modal>
 
      {/* Quantity Input Modal */}
-<Modal visible={quantityModalVisible} transparent={true} animationType="slide">
-  <View style={styles.quantityModalContainer}>
-    <View style={styles.quantityModalContent}>
-      
-      {/* Scanned Item Preview */}
-      {scannedItem && (
-        <View style={styles.scannedItemContainer}>
-          <Text style={styles.modalLabel}>Scanned Item</Text>
-          <Card style={styles.scannedItemCard}>
-            <Card.Content>
-              <Title style={styles.itemName}>{scannedItem.itemName}</Title>
-              <Paragraph>Available Quantity: {scannedItem.quantity}</Paragraph>
-              <Paragraph>Type: {scanningFor === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
-            </Card.Content>
-          </Card>
-        </View>
-      )}
-      
-      {/* Quantity Input Section */}
-      <Text style={styles.modalLabel}>
-        Enter quantity for {scannedItem?.supplyName || scannedItem?.itemName}:
-      </Text>
-      <TextInput
-        style={styles.input}
-        value={quantity}
-        onChangeText={setQuantity}
-        keyboardType="numeric"
-        placeholder="Enter quantity"
-      />
-                <Button title="Confirm" onPress={handleQuantityConfirm} />
- 
-      <Button title="Cancel" onPress={() => setQuantityModalVisible(false)} />
-    </View>
-  </View>
-</Modal>
-
-      {/* Prescription Modal */}
-      <Modal visible={prescriptionModalVisible} transparent={true} animationType="slide">
-        <View style={styles.prescriptionModalContainer}>
-          <View style={styles.prescriptionModalContent}>
-            <Text style={styles.modalLabel}>Prescriptions</Text>
-            <ScrollView>{renderPrescriptions()}</ScrollView>
-            <Button title="Close" onPress={() => setPrescriptionModalVisible(false)} />
+     <Modal visible={quantityModalVisible} transparent={true} animationType="slide">
+        <View style={styles.quantityModalContainer}>
+          <View style={styles.quantityModalContent}>
+            <Text style={styles.modalLabel}>Enter quantity for {scannedItems[scannedItems.length - 1]?.itemName}:</Text>
+            <TextInput
+              style={styles.input}
+              value={quantity}
+              onChangeText={setQuantity}
+              keyboardType="numeric"
+              placeholder="Enter quantity"
+            />
+            <Button title="Confirm" onPress={handleQuantityConfirm} />
+            <Button title="Cancel" onPress={() => setQuantityModalVisible(false)} />
           </View>
         </View>
       </Modal>
@@ -523,30 +369,10 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     backgroundColor: '#fff',
   },
-  datePickerButton: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  datePickerText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  textAreaContainer: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
-    backgroundColor: '#f0f0f0',
-  },
-  roomTypeText: {
-    fontSize: 16,
-    color: '#333',
+  label: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
   },
   modalContainer: {
     flex: 1,
@@ -575,56 +401,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 15,
   },
-  prescriptionForm: {
-    marginVertical: 20,
-    padding: 10,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 5,
-  },
-  formLabel: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  errorInput: {
-    borderColor: 'red',
-  },
-  errorText: {
-    color: 'red',
-    marginBottom: 5,
-  },
-  prescriptionModalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  prescriptionModalContent: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 10,
-    width: '90%',
-    maxHeight: '80%',
-  },
-  prescriptionItem: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 15,
-    marginVertical: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  prescriptionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  prescriptionDetail: {
-    fontSize: 16,
-    color: '#666',
-  },
   usedItemCard: {
     marginVertical: 10,
     padding: 15,
@@ -641,10 +417,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 5,
-  },
-  timestampText: {
-    fontSize: 14,
-    color: '#777',
   },
   scannedItemCard: {
     padding: 20,

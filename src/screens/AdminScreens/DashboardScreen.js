@@ -1,35 +1,46 @@
 import React from 'react';
-import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity,Text, ImageBackground, Platform } from 'react-native';
-import FeatureCard from './../../components/Card';
-import CSRUsageAnalyticsCard from './../../components/CSRUsageAnalyticsCard';
+import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, ImageBackground, Platform } from 'react-native';
+import FeatureCard from '../../components/Card';
+import UsageAnalyticsCard from '../../components/UsageAnalyticsCard';
 import Toast from 'react-native-toast-message';
 
 const { height } = Dimensions.get('window');
 
-const CSRdashboard = ({ navigation }) => {
+const Dashboard = ({ navigation }) => {
+  const handlePatientScannerPress = () => {
+    Toast.show({
+      type: 'success',
+      position: 'bottom',
+      text1: 'Navigating to Patient Scanner',
+      visibilityTime: 3000,
+      autoHide: true,
+      bottomOffset: 40,
+    });
+    navigation.navigate('PatientScanner');
+  };
 
   const handleInventoryHistoryPress = () => {
     Toast.show({
       type: 'success',
       position: 'bottom',
-      text1: 'Navigating to CSR Transfer History',
+      text1: 'Navigating to Inventory History',
       visibilityTime: 3000,
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('TransferHistory');
+    navigation.navigate('InventoryHistory');
   };
 
   const handleInventoryScreenPress = () => {
     Toast.show({
       type: 'success',
       position: 'bottom',
-      text1: 'Navigating to CSR Local Inventory',
+      text1: 'Navigating to Inventory Screen',
       visibilityTime: 3000,
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('LocalInventoryCSR');
+    navigation.navigate('InventoryScreen');
   };
 
   const handleUsageAnalyticsPress = (chartType) => {
@@ -43,55 +54,46 @@ const CSRdashboard = ({ navigation }) => {
     });
     navigation.navigate('UsageAnalyticsScreen', { chartType });
   };
-  const handleStockTransferPress = (chartType) => {
-    Toast.show({
-      type: 'success',
-      position: 'bottom',
-      text1: `Navigating to Usage Analytics for ${chartType}`,
-      visibilityTime: 3000,
-      autoHide: true,
-      bottomOffset: 40,
-    });
-    navigation.navigate('StockTransfer', { chartType });
-  };
 
   return (
-    <ImageBackground source={require('../../../assets/background.png')} style={styles.imageBackground}>
+    <ImageBackground source={require('./../../../assets/background.png')} style={styles.imageBackground}>
       <SafeAreaView style={styles.safeAreaView}>
         <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
         <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
           <View style={styles.cardContainer}>
-            <CSRUsageAnalyticsCard onChartPress={handleUsageAnalyticsPress} />
+            <UsageAnalyticsCard onChartPress={handleUsageAnalyticsPress} />
           </View>
           <View style={styles.featureCardContainer}>
-            <Text style={styles.titleText}>CSR DASHBOARD</Text>
             <View style={styles.grid}>
               <FeatureCard
                 title="Inventory"
-                icon={require('../../../assets/inventory.png')}
+                icon={require('./../../../assets/inventory.png')}
                 onPress={handleInventoryScreenPress}
               />
               <FeatureCard
-                title="Overall Inventory"
-                icon={require('../../../assets/inventoryOverall.png')}
-                onPress={() => navigation.navigate('Overallinventory')}
+                title="Create an Account"
+                icon={require('./../../../assets/inventoryOverall.png')}
+                onPress={() => navigation.navigate('CreateAccountScreen')}
               />
-              
+              <FeatureCard
+                title="Patient Scanner"
+                icon={require('./../../../assets/patientScanner.png')}
+                onPress={handlePatientScannerPress}
+              />
               <FeatureCard
                 title="Inventory Scanner"
-                icon={require('../../../assets/inventoryScanner.png')}
-                onPress={() => navigation.navigate('CSRscanner')}
+                icon={require('./../../../assets/inventoryScanner.png')}
+                onPress={() => navigation.navigate('InventoryScanner')}
               />
-             
               <FeatureCard
-                title="Transfer History"
-                icon={require('../../../assets/inventoryHistory.png')}
+                title="Access Department"
+                icon={require('./../../../assets/accessDept.png')}
+                onPress={() => navigation.navigate('AccessDepartment')}
+              />
+              <FeatureCard
+                title="Inventory History"
+                icon={require('./../../../assets/inventoryHistory.png')}
                 onPress={handleInventoryHistoryPress}
-              />
-              <FeatureCard
-                title="Stocks Transfer"
-                icon={require('../../../assets/inventoryHistory.png')}
-                onPress={handleStockTransferPress}
               />
             </View>
           </View>
@@ -122,7 +124,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   featureCardContainer: {
-    backgroundColor: 'rgba(251, 251, 249, 0.9)', // Add slight transparency to see the background image
+    backgroundColor: 'rgba(251, 251, 249,1)', // Add slight transparency to see the background image
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 5 },
@@ -141,13 +143,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Platform.OS === 'ios' ? 20 : 10, // Different padding for iOS
   },
-  titleText:{
-    textAlign:'center',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: -21,
-    color: 'maroon'
-  }
 });
 
-export default CSRdashboard;
+export default Dashboard;

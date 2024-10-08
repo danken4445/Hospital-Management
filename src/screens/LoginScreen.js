@@ -35,8 +35,8 @@ const LoginScreen = ({ navigation }) => {
           case 'pharmacy':
             navigation.navigate('PharmacyScreen'); // Pharmacy-specific screen
             break;
-          case 'icu':
-            navigation.navigate('ICUScreen'); // ICU-specific screen
+          case 'ICU':
+            navigation.navigate('ICUdashboard'); // ICU-specific screen
             break;
           case 'inpatient':
             navigation.navigate('InpatientsScreen'); // Inpatients-specific screen

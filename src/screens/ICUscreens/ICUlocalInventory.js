@@ -4,7 +4,7 @@ import { Card, Title, Paragraph, Button } from 'react-native-paper';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
 
-const CSRInventoryScreen = () => {
+const ICUlocalInventory = () => {
   const [inventory, setInventory] = useState([]);
   const [filteredInventory, setFilteredInventory] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,7 +14,7 @@ const CSRInventoryScreen = () => {
 
   useEffect(() => {
     const db = getDatabase();
-    const csrInventoryRef = ref(db, 'supplies');
+    const csrInventoryRef = ref(db, 'departments/ICU/localSupplies');
 
     const fetchData = () => {
       onValue(csrInventoryRef, (snapshot) => {
@@ -24,7 +24,7 @@ const CSRInventoryScreen = () => {
             id: key,
             name: csrData[key].itemName,
             quantity: csrData[key].quantity,
-            type: 'Supply',
+            type: 'supply',
           }));
           setInventory(inventoryArray);
           setFilteredInventory(inventoryArray);
@@ -187,4 +187,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CSRInventoryScreen;
+export default ICUlocalInventory;

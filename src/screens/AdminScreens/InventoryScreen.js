@@ -14,94 +14,58 @@ const OverallInventory = () => {
   useEffect(() => {
     const db = getDatabase();
     const departmentsRef = ref(db, 'departments');
-    const suppliesRef = ref(db, 'supplies'); // Fetching the 'supplies' node
 
-    const fetchInventory = () => {
-      let supplyTotals = {};
+    onValue(departmentsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const departmentsData = snapshot.val();
+        const supplyTotals = {};
 
-      // Fetch department-specific localSupplies
-      onValue(departmentsRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const departmentsData = snapshot.val();
+        for (const deptKey in departmentsData) {
+          const department = departmentsData[deptKey];
+          if (department.localSupplies) {
+            for (const supplyKey in department.localSupplies) {
+              const supply = department.localSupplies[supplyKey];
 
-          for (const deptKey in departmentsData) {
-            const department = departmentsData[deptKey];
-            if (department.localSupplies) {
-              for (const supplyKey in department.localSupplies) {
-                const supply = department.localSupplies[supplyKey];
-
-                if (supplyTotals[supply.itemName]) {
-                  supplyTotals[supply.itemName].totalQuantity += supply.quantity;
-                  supplyTotals[supply.itemName].departments.push({
-                    departmentName: deptKey,
-                    quantity: supply.quantity,
-                    brand: supply.brand,
-                  });
-                } else {
-                  supplyTotals[supply.itemName] = {
-                    totalQuantity: supply.quantity,
-                    brand: supply.brand,
-                    departments: [
-                      {
-                        departmentName: deptKey,
-                        quantity: supply.quantity,
-                        brand: supply.brand,
-                      },
-                    ],
-                  };
-                }
+              if (supplyTotals[supply.itemName]) {
+                supplyTotals[supply.itemName].totalQuantity += supply.quantity;
+                supplyTotals[supply.itemName].departments.push({
+                  departmentName: deptKey,
+                  quantity: supply.quantity,
+                  brand: supply.brand,
+                });
+              } else {
+                supplyTotals[supply.itemName] = {
+                  totalQuantity: supply.quantity,
+                  brand: supply.brand,
+                  departments: [
+                    {
+                      departmentName: deptKey,
+                      quantity: supply.quantity,
+                      brand: supply.brand,
+                    },
+                  ],
+                };
               }
             }
           }
-
-          // Fetch CSR-wide supplies
-          onValue(suppliesRef, (suppliesSnapshot) => {
-            if (suppliesSnapshot.exists()) {
-              const suppliesData = suppliesSnapshot.val();
-
-              for (const supplyKey in suppliesData) {
-                const supply = suppliesData[supplyKey];
-
-                if (supplyTotals[supply.itemName]) {
-                  supplyTotals[supply.itemName].totalQuantity += supply.quantity;
-                  supplyTotals[supply.itemName].departments.push({
-                    departmentName: 'CSR',
-                    quantity: supply.quantity,
-                    brand: supply.brand,
-                  });
-                } else {
-                  supplyTotals[supply.itemName] = {
-                    totalQuantity: supply.quantity,
-                    brand: supply.brand,
-                    departments: [
-                      {
-                        departmentName: 'CSR',
-                        quantity: supply.quantity,
-                        brand: supply.brand,
-                      },
-                    ],
-                  };
-                }
-              }
-
-              // Transform the final result into an array for display
-              const supplyArray = Object.keys(supplyTotals).map((itemName) => ({
-                itemName,
-                totalQuantity: supplyTotals[itemName].totalQuantity,
-                brandName: supplyTotals[itemName].brand,
-                departments: supplyTotals[itemName].departments,
-              }));
-
-              setOverallSupplies(supplyArray);
-              setFilteredSupplies(supplyArray);
-              setLoading(false);
-            }
-          });
         }
-      });
-    };
 
-    fetchInventory();
+        const supplyArray = Object.keys(supplyTotals).map((itemName) => ({
+          itemName,
+          totalQuantity: supplyTotals[itemName].totalQuantity,
+          brandName: supplyTotals[itemName].brand,
+          departments: supplyTotals[itemName].departments,
+        }));
+
+        setOverallSupplies(supplyArray);
+        setFilteredSupplies(supplyArray);
+      } else {
+        setOverallSupplies([]);
+        setFilteredSupplies([]);
+      }
+
+      setLoading(false);
+    });
   }, []);
 
   const handleSearch = (query) => {
@@ -203,5 +167,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+
 
 export default OverallInventory;
