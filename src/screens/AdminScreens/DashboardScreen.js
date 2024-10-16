@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, ImageBackground, Platform } from 'react-native';
+import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, Text, ImageBackground, Platform } from 'react-native';
 import FeatureCard from '../../components/Card';
 import UsageAnalyticsCard from '../../components/UsageAnalyticsCard';
 import Toast from 'react-native-toast-message';
@@ -64,6 +64,7 @@ const Dashboard = ({ navigation }) => {
             <UsageAnalyticsCard onChartPress={handleUsageAnalyticsPress} />
           </View>
           <View style={styles.featureCardContainer}>
+          <Text style={styles.titleText}>ADMIN DASHBOARD</Text>
             <View style={styles.grid}>
               <FeatureCard
                 title="Inventory"
@@ -89,11 +90,6 @@ const Dashboard = ({ navigation }) => {
                 title="Access Department"
                 icon={require('./../../../assets/accessDept.png')}
                 onPress={() => navigation.navigate('AccessDepartment')}
-              />
-              <FeatureCard
-                title="Inventory History"
-                icon={require('./../../../assets/inventoryHistory.png')}
-                onPress={handleInventoryHistoryPress}
               />
             </View>
           </View>
@@ -143,6 +139,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Platform.OS === 'ios' ? 20 : 10, // Different padding for iOS
   },
+  titleText:{
+    textAlign:'center',
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginTop: -21,
+    color: 'maroon'
+  }
 });
 
 export default Dashboard;

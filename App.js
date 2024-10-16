@@ -1,4 +1,3 @@
-// App.js
 import React from 'react';
 import Navigation from './src/navigation/Navigation';
 import { GluestackUIProvider } from "@gluestack-ui/themed";
@@ -10,7 +9,7 @@ const App = () => {
       {/* Include Navigation Component */}
       <Navigation />
       {/* Correct setup for Toast */}
-      <Toast ref={(ref) => Toast.setRef(ref)} />
+      <Toast />
     </GluestackUIProvider>
   );
 };

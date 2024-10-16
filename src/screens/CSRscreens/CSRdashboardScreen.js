@@ -1,13 +1,13 @@
-import React from 'react';
-import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity,Text, ImageBackground, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, Text, ImageBackground, Platform } from 'react-native';
 import FeatureCard from './../../components/Card';
-import CSRUsageAnalyticsCard from './../../components/CSRUsageAnalyticsCard';
 import Toast from 'react-native-toast-message';
+import CSRUsageAnalyticsCard from '@/src/components/CSRUsageAnalyticsCard';
 
-const { height } = Dimensions.get('window');
+const { height, width: screenWidth } = Dimensions.get('window');
 
 const CSRdashboard = ({ navigation }) => {
-
+  
   const handleInventoryHistoryPress = () => {
     Toast.show({
       type: 'success',
@@ -43,6 +43,7 @@ const CSRdashboard = ({ navigation }) => {
     });
     navigation.navigate('UsageAnalyticsScreen', { chartType });
   };
+
   const handleStockTransferPress = (chartType) => {
     Toast.show({
       type: 'success',
@@ -66,21 +67,16 @@ const CSRdashboard = ({ navigation }) => {
           <View style={styles.featureCardContainer}>
             <Text style={styles.titleText}>CSR DASHBOARD</Text>
             <View style={styles.grid}>
-              <FeatureCard
-                title="Inventory"
-                icon={require('../../../assets/inventory.png')}
-                onPress={handleInventoryScreenPress}
-              />
-              <FeatureCard
+              <FeatureCard 
                 title="Overall Inventory"
                 icon={require('../../../assets/inventoryOverall.png')}
                 onPress={() => navigation.navigate('Overallinventory')}
               />
               
               <FeatureCard
-                title="Inventory Scanner"
-                icon={require('../../../assets/inventoryScanner.png')}
-                onPress={() => navigation.navigate('CSRscanner')}
+                title="CSR Inventory"
+                icon= {require('../../../assets/inventory.png')}
+                onPress={() => navigation.navigate('CSRInventoryScanner')}
               />
              
               <FeatureCard
@@ -90,7 +86,7 @@ const CSRdashboard = ({ navigation }) => {
               />
               <FeatureCard
                 title="Stocks Transfer"
-                icon={require('../../../assets/inventoryHistory.png')}
+                icon={require('../../../assets/stockTransfer.png')}
                 onPress={handleStockTransferPress}
               />
             </View>
@@ -104,7 +100,7 @@ const CSRdashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   imageBackground: {
     flex: 1,
-    resizeMode: 'cover', // Ensure the image covers the entire background
+    resizeMode: 'cover',
   },
   safeAreaView: {
     flex: 1,
@@ -122,7 +118,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   featureCardContainer: {
-    backgroundColor: 'rgba(251, 251, 249, 0.9)', // Add slight transparency to see the background image
+    backgroundColor: 'rgba(251, 251, 249, 0.9)',
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 5 },
@@ -133,21 +129,38 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 64,
     borderTopRightRadius: 64,
     marginTop: -34,
-    paddingBottom: 40, // Add padding to the bottom to avoid overlap with home bar
+    paddingBottom: 40,
   },
+
+  featureCardContainer1: {
+    backgroundColor: 'rgba(251, 251, 249, 0.9)',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 44,
+    height: '80%',
+    paddingTop: 34,
+    paddingHorizontal: 10,
+    borderTopLeftRadius: 64,
+    borderTopRightRadius: 64,
+    marginTop: -34,
+    paddingBottom: 40,
+    paddingRight:12,
+  },
+
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: Platform.OS === 'ios' ? 20 : 10, // Different padding for iOS
+    paddingHorizontal: Platform.OS === 'ios' ? 20 : 10,
   },
-  titleText:{
-    textAlign:'center',
+  titleText: {
+    textAlign: 'center',
     fontSize: 32,
     fontWeight: 'bold',
     marginTop: -21,
-    color: 'maroon'
-  }
+    color: 'maroon',
+  },
 });
 
 export default CSRdashboard;

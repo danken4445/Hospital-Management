@@ -14,17 +14,28 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
 
   useEffect(() => {
     const db = getDatabase();
-    const historyRef = ref(db, 'inventoryHistory');
+    const departmentsRef = ref(db, 'departments');
 
     const fetchData = () => {
-      onValue(historyRef, (snapshot) => {
+      let allUsageHistory = [];
+
+      // Fetching usage history from all departments
+      onValue(departmentsRef, (snapshot) => {
         if (snapshot.exists()) {
-          const historyData = snapshot.val();
-          const historyArray = Object.keys(historyData).map((key) => ({
-            id: key,
-            ...historyData[key],
-          }));
-          setInventoryHistory(historyArray);
+          const departmentsData = snapshot.val();
+
+          // Loop through all departments
+          Object.keys(departmentsData).forEach((deptKey) => {
+            const department = departmentsData[deptKey];
+            if (department.usageHistory) {
+              // Collect usage history from each department
+              Object.keys(department.usageHistory).forEach((usageKey) => {
+                allUsageHistory.push(department.usageHistory[usageKey]);
+              });
+            }
+          });
+
+          setInventoryHistory(allUsageHistory);
         } else {
           setInventoryHistory([]);
         }
@@ -39,6 +50,7 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
 
     const itemUsage = {};
 
+    // Aggregate item usage across all departments
     inventoryHistory.forEach((entry) => {
       if (itemUsage[entry.itemName]) {
         itemUsage[entry.itemName] += entry.quantity;

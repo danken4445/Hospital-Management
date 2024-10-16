@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView, Modal, TouchableOpacity } from 'react-native';
-import { Card, Title, Divider, IconButton, Button } from 'react-native-paper';
-import { BarChart, PieChart } from 'react-native-chart-kit';
-import { getDatabase, ref, onValue } from 'firebase/database';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Dimensions, ScrollView, FlatList, ActivityIndicator } from 'react-native';
+import { Card, Title, Divider, Button, Paragraph } from 'react-native-paper';
+import { PieChart, BarChart } from 'react-native-chart-kit';
+import { getDatabase, ref, onValue, get } from 'firebase/database';
+import { auth } from '../../../firebaseConfig';
 import moment from 'moment';
-import * as ScreenOrientation from 'expo-screen-orientation';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -15,35 +14,90 @@ const AnalyticsScreen = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [medicinesData, setMedicinesData] = useState([]);
   const [suppliesData, setSuppliesData] = useState([]);
-  const [selectedChart, setSelectedChart] = useState(null); // State for selected chart
-  const [modalVisible, setModalVisible] = useState(false); // State for chart modal
+  const [departmentItems, setDepartmentItems] = useState([]);
+  const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const lockLandscape = async () => {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-    };
-    lockLandscape();
-
-    return () => {
-      // Revert to default orientation (either portrait or landscape) when leaving the screen
-      ScreenOrientation.unlockAsync();
-    };
-  }, []);
-
-  useEffect(() => {
-    const db = getDatabase();
-    const historyRef = ref(db, 'inventoryHistory');
-
-    onValue(historyRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const historyData = snapshot.val();
-        const historyArray = Object.keys(historyData).map((key) => ({
-          id: key,
-          ...historyData[key],
-        }));
-        setInventoryHistory(historyArray);
+    const fetchUserRole = async () => {
+      setLoading(true);
+      const user = auth.currentUser;
+      if (user) {
+        const db = getDatabase();
+        const userRef = ref(db, `users/${user.uid}`);
+        const snapshot = await get(userRef);
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
+          setUserRole(userData.role);
+          fetchData(userData.role);
+        } else {
+          console.log('User data not found in the database.');
+          setLoading(false);
+        }
       }
-    });
+    };
+
+    const fetchData = (role) => {
+      const db = getDatabase();
+      let departmentsRef;
+      let allInventory = [];
+      let allUsageHistory = [];
+
+      if (role === 'admin') {
+        departmentsRef = ref(db, 'departments'); // Admin fetches all departments
+      } else {
+        departmentsRef = ref(db, `departments/${role}`); // Non-admin fetches their department
+      }
+
+      onValue(departmentsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const departmentsData = snapshot.val();
+          const meds = [];
+          const supplies = [];
+          const usageHistory = [];
+          const itemsArray = [];
+
+          // Loop through all departments for admin
+          Object.keys(departmentsData).forEach((deptKey) => {
+            const department = departmentsData[deptKey];
+
+            // Fetch localMeds
+            if (department.localMeds) {
+              Object.keys(department.localMeds).forEach((medKey) => {
+                meds.push(department.localMeds[medKey]);
+                itemsArray.push(department.localMeds[medKey]);
+              });
+            }
+
+            // Fetch localSupplies
+            if (department.localSupplies) {
+              Object.keys(department.localSupplies).forEach((supplyKey) => {
+                supplies.push(department.localSupplies[supplyKey]);
+                itemsArray.push(department.localSupplies[supplyKey]);
+              });
+            }
+
+            // Fetch usageHistory
+            if (department.usageHistory) {
+              Object.keys(department.usageHistory).forEach((usageKey) => {
+                usageHistory.push(department.usageHistory[usageKey]);
+              });
+            }
+          });
+
+          // Update state for all fetched data
+          setMedicinesData(meds);
+          setSuppliesData(supplies);
+          setInventoryHistory(usageHistory);
+          setDepartmentItems(itemsArray);
+        } else {
+          console.log('No data found for departments.');
+        }
+        setLoading(false);
+      });
+    };
+
+    fetchUserRole();
   }, []);
 
   useEffect(() => {
@@ -64,13 +118,23 @@ const AnalyticsScreen = () => {
 
     setFilteredData(filtered);
 
-    // Separate medicines and supplies data
     const medicines = filtered.filter(item => item.type === 'medicines');
     const supplies = filtered.filter(item => item.type === 'supplies');
 
     setMedicinesData(medicines);
     setSuppliesData(supplies);
   };
+
+  const renderItem = ({ item }) => (
+    <Card style={styles.card}>
+      <Card.Content>
+        <Title style={styles.cardTitle}>{item.itemName}</Title>
+        <Paragraph>Quantity: {item.quantity}</Paragraph>
+        <Paragraph>Brand: {item.brand || 'N/A'}</Paragraph>
+        <Paragraph>Status: {item.status}</Paragraph>
+      </Card.Content>
+    </Card>
+  );
 
   const chartConfig = {
     backgroundGradientFrom: '#ffffff',
@@ -88,131 +152,20 @@ const AnalyticsScreen = () => {
     },
   };
 
-  const renderPieChart = (data, title, colors) => {
-    if (!data || data.length === 0) return <Text style={styles.noDataText}>No data available for {title}.</Text>;
-
-    const pieData = data.map((item, index) => ({
-      name: item.itemName,
-      quantity: item.quantity,
-      color: colors[index % colors.length],
-      legendFontColor: '#333',
-      legendFontSize: 12,
-    }));
-
+  if (loading) {
     return (
-      <TouchableOpacity onPress={() => openChartModal('pie', pieData, title)}>
-        <PieChart
-          data={pieData}
-          width={screenWidth - 30}
-          height={220}
-          chartConfig={chartConfig}
-          accessor={'quantity'}
-          backgroundColor={'transparent'}
-          paddingLeft={'15'}
-          absolute
-        />
-      </TouchableOpacity>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#7a0026" />
+        <Text>Loading data...</Text>
+      </View>
     );
-  };
-
-  const renderBarChart = (data, title, color) => {
-    if (!data || data.length === 0) return <Text style={styles.noDataText}>No data available for {title}.</Text>;
-
-    const itemUsage = data.reduce((acc, entry) => {
-      if (acc[entry.itemName]) {
-        acc[entry.itemName] += entry.quantity;
-      } else {
-        acc[entry.itemName] = entry.quantity;
-      }
-      return acc;
-    }, {});
-
-    const labels = Object.keys(itemUsage);
-    const quantities = Object.values(itemUsage);
-
-    return (
-      <TouchableOpacity onPress={() => openChartModal('bar', { labels, datasets: [{ data: quantities }] }, title)}>
-        <BarChart
-          data={{
-            labels,
-            datasets: [
-              {
-                data: quantities,
-              },
-            ],
-          }}
-          width={screenWidth - 30}
-          height={220}
-          yAxisLabel=""
-          chartConfig={{
-            ...chartConfig,
-            color: () => color,
-          }}
-          verticalLabelRotation={30}
-          fromZero
-        />
-      </TouchableOpacity>
-    );
-  };
-
-  const openChartModal = (type, data, title) => {
-    if (!data || data.length === 0) {
-      console.warn(`No data available for ${title}`);
-      return;
-    }
-    setSelectedChart({ type, data, title });
-    setModalVisible(true);
-  };
-
-  const renderChartModal = () => {
-    if (!selectedChart) return null;
-
-    const { type, data, title } = selectedChart;
-
-    return (
-      <Modal visible={modalVisible} transparent={true} animationType="fade">
-        <View style={styles.modalContainer}>
-          <Card style={styles.modalCard}>
-            <Card.Title title={title} />
-            <Card.Content>
-              {type === 'pie' && data.length > 0 && (
-                <PieChart
-                  data={data}
-                  width={screenWidth * 1}
-                  height={300}
-                  chartConfig={chartConfig}
-                  accessor={'quantity'}
-                  backgroundColor={'transparent'}
-                  paddingLeft={'15'}
-                  absolute
-                />
-              )}
-              {type === 'bar' && data.labels.length > 0 && (
-                <BarChart
-                  data={data}
-                  width={screenWidth * 0.85}
-                  height={300}
-                  yAxisLabel=""
-                  chartConfig={chartConfig}
-                  verticalLabelRotation={30}
-                  fromZero
-                />
-              )}
-              <Button mode="contained" onPress={() => setModalVisible(false)}>
-                Close
-              </Button>
-            </Card.Content>
-          </Card>
-        </View>
-      </Modal>
-    );
-  };
+  }
 
   return (
     <ScrollView style={styles.container}>
       <Card style={styles.card}>
         <Card.Content>
-          <Title style={styles.title}>Usage Analytics</Title>
+          <Title style={styles.title}>Usage Analytics for {userRole === 'admin' ? 'All Departments' : userRole}</Title>
 
           <View style={styles.timeFrameContainer}>
             <Button
@@ -240,52 +193,70 @@ const AnalyticsScreen = () => {
 
           <Divider style={styles.divider} />
 
-          <View style={styles.summaryContainer}>
-            <View style={styles.summaryBox}>
-              <IconButton icon="pill" size={30} color="#2196F3" />
-              <Text style={styles.summaryText}>Medicines: {medicinesData.length} items</Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <IconButton icon="archive" size={30} color="#4CAF50" />
-              <Text style={styles.summaryText}>Supplies: {suppliesData.length} items</Text>
-            </View>
+          {/* Display LocalMeds and LocalSupplies */}
+          <View style={styles.itemsContainer}>
+            <Text style={styles.sectionTitle}>Department Items</Text>
+            {departmentItems.length > 0 ? (
+              <FlatList
+                data={departmentItems}
+                renderItem={renderItem}
+                keyExtractor={(item) => item.itemKey || item.itemName}
+              />
+            ) : (
+              <Text>No items available for this department.</Text>
+            )}
           </View>
 
+          {/* Bar Chart for Medicine Usage */}
           <View style={styles.chartContainer}>
-            <View style={styles.chartHeader}>
-              <FontAwesome5 name="pills" size={24} color="#2196F3" />
-              <Title style={styles.sectionTitle}>Medicine Usage</Title>
-            </View>
-            {renderBarChart(medicinesData, 'Medicine Usage', '#2196F3')}
+            <Title style={styles.sectionTitle}>Medicine Usage</Title>
+            {medicinesData.length > 0 ? (
+              <BarChart
+                data={{
+                  labels: medicinesData.map(item => item.itemName),
+                  datasets: [
+                    {
+                      data: medicinesData.map(item => item.quantity),
+                    },
+                  ],
+                }}
+                width={screenWidth - 30}
+                height={220}
+                yAxisLabel=""
+                chartConfig={chartConfig}
+                verticalLabelRotation={30}
+                fromZero
+              />
+            ) : (
+              <Text>No data available for medicines.</Text>
+            )}
           </View>
 
+          {/* Pie Chart for Supplies Breakdown */}
           <View style={styles.chartContainer}>
-            <View style={styles.chartHeader}>
-              <FontAwesome5 name="chart-pie" size={24} color="#2196F3" />
-              <Title style={styles.sectionTitle}>Medicine Breakdown</Title>
-            </View>
-            {renderPieChart(medicinesData, 'Medicine Breakdown', ['#4CAF50', '#FF5722', '#FFC107', '#2196F3', '#9C27B0'])}
-          </View>
-
-          <View style={styles.chartContainer}>
-            <View style={styles.chartHeader}>
-              <FontAwesome5 name="box" size={24} color="#4CAF50" />
-              <Title style={styles.sectionTitle}>Supplies Usage</Title>
-            </View>
-            {renderBarChart(suppliesData, 'Supplies Usage', '#4CAF50')}
-          </View>
-
-          <View style={styles.chartContainer}>
-            <View style={styles.chartHeader}>
-              <FontAwesome5 name="chart-pie" size={24} color="#4CAF50" />
-              <Title style={styles.sectionTitle}>Supplies Breakdown</Title>
-            </View>
-            {renderPieChart(suppliesData, 'Supplies Breakdown', ['#FF5722', '#FFC107', '#4CAF50', '#00BCD4', '#E91E63'])}
+            <Title style={styles.sectionTitle}>Supplies Breakdown</Title>
+            {suppliesData.length > 0 ? (
+              <PieChart
+                data={suppliesData.map((item, index) => ({
+                  name: item.itemName,
+                  quantity: item.quantity,
+                  color: chartConfig.color(index / suppliesData.length),
+                  legendFontColor: '#333',
+                  legendFontSize: 14,
+                }))}
+                width={screenWidth - 30}
+                height={220}
+                chartConfig={chartConfig}
+                accessor="quantity"
+                backgroundColor="transparent"
+                paddingLeft="15"
+              />
+            ) : (
+              <Text>No data available for supplies.</Text>
+            )}
           </View>
         </Card.Content>
       </Card>
-
-      {renderChartModal()}
     </ScrollView>
   );
 };
@@ -296,11 +267,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f4f4f4',
     padding: 2,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   card: {
     borderRadius: 20,
     elevation: 3,
     backgroundColor: '#fff',
-    padding: 2,
+    marginVertical: 10,
   },
   title: {
     fontSize: 22,
@@ -320,68 +296,17 @@ const styles = StyleSheet.create({
   divider: {
     marginVertical: 20,
   },
-  summaryContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 20,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  summaryBox: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: 34,
-  },
-  summaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  chartContainer: {
+  itemsContainer: {
     marginVertical: 15,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  chartHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
   },
   sectionTitle: {
-    marginLeft: 10,
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    marginBottom: 10,
   },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  modalCard: {
-    width: '90%',
-    borderRadius: 20,
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  noDataText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginVertical: 20,
+  chartContainer: {
+    marginVertical: 15,
   },
 });
 

@@ -2,19 +2,40 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, Animated, TouchableOpacity } from 'react-native';
 import { Card } from 'react-native-paper';
 import { PieChart, BarChart } from 'react-native-chart-kit';
-import { getDatabase, ref, onValue } from 'firebase/database';
+import { getDatabase, ref, onValue, get } from 'firebase/database';
+import { auth } from './../../firebaseConfig'; // Make sure the path is correct
 
 const screenWidth = Dimensions.get('window').width;
 
-const CSRUsageAnalyticsCard = ({ onChartPress }) => {
+const DepartmentUsageAnalyticsCard = ({ onChartPress }) => {
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [pieChartData, setPieChartData] = useState([]);
   const [barChartData, setBarChartData] = useState(null);
   const [scrollX] = useState(new Animated.Value(0));
+  const [userDepartment, setUserDepartment] = useState(null);
 
   useEffect(() => {
     const db = getDatabase();
-    const historyRef = ref(db, '/supplyHistoryTransfer'); // Correct Firebase reference
+    const fetchUserDepartment = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const userRef = ref(db, `users/${user.uid}`);
+        const snapshot = await get(userRef);
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
+          setUserDepartment(userData.role); // Assuming 'role' is the department name
+        }
+      }
+    };
+
+    fetchUserDepartment();
+  }, []);
+
+  useEffect(() => {
+    if (!userDepartment) return;
+
+    const db = getDatabase();
+    const historyRef = ref(db, `departments/${userDepartment}/usageHistory`);
 
     const fetchData = () => {
       onValue(historyRef, (snapshot) => {
@@ -32,7 +53,7 @@ const CSRUsageAnalyticsCard = ({ onChartPress }) => {
     };
 
     fetchData();
-  }, []);
+  }, [userDepartment]);
 
   useEffect(() => {
     if (inventoryHistory.length === 0) return;
@@ -40,13 +61,10 @@ const CSRUsageAnalyticsCard = ({ onChartPress }) => {
     const itemUsage = {};
 
     inventoryHistory.forEach((entry) => {
-      const itemName = entry.itemName || 'Unknown Item'; // Fallback to 'Unknown Item' if itemName is missing
-      const quantity = parseFloat(entry.quantity) || 0; // Ensure quantity is numeric
-
-      if (itemUsage[itemName]) {
-        itemUsage[itemName] += quantity;
+      if (itemUsage[entry.itemName]) {
+        itemUsage[entry.itemName] += entry.quantity;
       } else {
-        itemUsage[itemName] = quantity;
+        itemUsage[entry.itemName] = entry.quantity;
       }
     });
 
@@ -238,4 +256,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CSRUsageAnalyticsCard;
+export default DepartmentUsageAnalyticsCard;

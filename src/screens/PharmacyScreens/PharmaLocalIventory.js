@@ -4,9 +4,9 @@ import { Card, Title, Paragraph, Searchbar, Button } from 'react-native-paper';
 import { getDatabase, ref, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { BarCodeScanner } from 'expo-barcode-scanner';
-import { useNavigation } from '@react-navigation/native'; // To navigate to StockTransferScreen
+import { useNavigation } from '@react-navigation/native';
 
-const CSRInventoryScanner = () => {
+const PharmaLocalInventory = () => {
   const [inventory, setInventory] = useState([]);
   const [filteredInventory, setFilteredInventory] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,25 +17,25 @@ const CSRInventoryScanner = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [customAlertVisible, setCustomAlertVisible] = useState(false);
   const [alertContent, setAlertContent] = useState({});
-  const navigation = useNavigation(); // Hook to navigate between screens
+  const navigation = useNavigation(); // To navigate between screens
 
   useEffect(() => {
     const fetchInventory = async () => {
       setLoading(true); // Set loading true while data is fetched
       const db = getDatabase();
-      const suppliesRef = ref(db, 'departments/CSR/localSupplies');
+      const medsRef = ref(db, 'departments/Pharmacy/localMeds'); // Update to Pharmacy department
 
       try {
-        const snapshot = await get(suppliesRef);
+        const snapshot = await get(medsRef);
         if (snapshot.exists()) {
-          const suppliesData = snapshot.val();
-          const suppliesArray = Object.keys(suppliesData).map((key) => ({
+          const medsData = snapshot.val();
+          const medsArray = Object.keys(medsData).map((key) => ({
             id: key,
-            ...suppliesData[key],
-            type: 'Supplies',
+            ...medsData[key],
+            type: 'Medicines',
           }));
-          setInventory(suppliesArray); // Set the full inventory from the supplies node
-          setFilteredInventory(suppliesArray); // Set filtered inventory as well initially
+          setInventory(medsArray); // Set the full inventory from the meds node
+          setFilteredInventory(medsArray); // Set filtered inventory as well initially
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -70,24 +70,24 @@ const CSRInventoryScanner = () => {
   // Navigate to StockTransferScreen with selected item details
   const handleTransferStock = () => {
     setItemModalVisible(false); // Close item details modal
-    navigation.navigate('StockTransfer', { itemDetails: selectedItem }); // Pass item details to StockTransferScreen
+    navigation.navigate('PharmaStockTransferScreen', { itemDetails: selectedItem }); // Pass item details to StockTransferScreen
   };
 
   // Handle bar code scan results
   const handleBarCodeScanned = async ({ type, data }) => {
     setScanning(false);
     setModalVisible(false);
-  
+
     try {
       const db = getDatabase();
-      // Update the path to match your Firebase structure
-      const suppliesRef = ref(db, `departments/CSR/localSupplies/${data}`);
-  
-      // Check if the scanned data exists in the supplies node
-      const suppliesSnapshot = await get(suppliesRef);
-      if (suppliesSnapshot.exists()) {
-        const suppliesData = suppliesSnapshot.val();
-        setSelectedItem({ id: data, ...suppliesData });
+      // Update the path to match your Firebase structure for Pharmacy
+      const medsRef = ref(db, `departments/Pharmacy/localMeds/${data}`);
+
+      // Check if the scanned data exists in the meds node
+      const medsSnapshot = await get(medsRef);
+      if (medsSnapshot.exists()) {
+        const medsData = medsSnapshot.val();
+        setSelectedItem({ id: data, ...medsData });
         setItemModalVisible(true); // Show the item details modal
       } else {
         setAlertContent({
@@ -105,14 +105,14 @@ const CSRInventoryScanner = () => {
       setCustomAlertVisible(true);
     }
   };
-  
+
   // Render each inventory item
   const renderItem = ({ item }) => (
     <TouchableOpacity onPress={() => handleItemPress(item)}>
       <Card style={styles.card}>
         <Card.Content>
           <View style={styles.cardHeader}>
-            <FontAwesome5 name="box" size={24} color="#4CAF50" />
+            <FontAwesome5 name="pills" size={24} color="#4CAF50" />
             <Title style={styles.cardTitle}>{item.itemName}</Title>
           </View>
           <Paragraph><Text style={styles.label}>Brand:</Text> {item.brand}</Paragraph>
@@ -172,7 +172,7 @@ const CSRInventoryScanner = () => {
                 onPress={handleTransferStock}
                 style={styles.transferButton}
               >
-                Transfer Stock
+                Transfer Stocks
               </Button>
               <Button onPress={() => setItemModalVisible(false)}>Close</Button>
             </View>
@@ -312,4 +312,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CSRInventoryScanner;
+export default PharmaLocalInventory;

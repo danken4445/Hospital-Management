@@ -23,26 +23,22 @@ const LoginScreen = ({ navigation }) => {
 
       if (snapshot.exists()) {
         const userData = snapshot.val();
-
-        // Check user role and navigate accordingly
+        
+        // Redirect users based on their role
         switch (userData.role) {
           case 'admin':
-            navigation.navigate('Dashboard'); // Admin Dashboard
+            navigation.navigate('AdminDashboard'); // Admin Dashboard
             break;
           case 'csr':
             navigation.navigate('CSRdashboardScreen'); // CSR-specific screen
             break;
           case 'pharmacy':
-            navigation.navigate('PharmacyScreen'); // Pharmacy-specific screen
-            break;
-          case 'ICU':
-            navigation.navigate('ICUdashboard'); // ICU-specific screen
-            break;
-          case 'inpatient':
-            navigation.navigate('InpatientsScreen'); // Inpatients-specific screen
+            navigation.navigate('PharmaDashboard'); // Pharmacy-specific screen
             break;
           default:
-            Alert.alert('Access Denied', 'You do not have permission to access this app.');
+            // For departments like ICU, Inpatient, etc., we redirect to a reusable 'DepartmentScreen'
+            navigation.navigate('DepartmentScreen', { department: userData.role }); 
+            break;
         }
       } else {
         Alert.alert('Error', 'User data not found.');
@@ -120,7 +116,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 150,
     marginBottom: 10,
-    marginTop:24
+    marginTop: 24,
   },
   title: {
     fontSize: 24,
@@ -137,11 +133,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     width: '100%',
     paddingVertical: 8,
-  },
-  forgotPassword: {
-    marginTop: 10,
-    width: '100%',
-    color: themeColors.primary,
   },
 });
 

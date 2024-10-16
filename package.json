@@ -23,6 +23,7 @@
     "@react-navigation/stack": "^6.4.1",
     "@types/react": "~18.2.79",
     "babel-plugin-module-resolver": "^5.0.2",
+    "date-fns": "^4.1.0",
     "expo": "~51.0.28",
     "expo-barcode-scanner": "~13.0.1",
     "expo-camera": "~15.0.16",

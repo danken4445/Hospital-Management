@@ -6,7 +6,7 @@ import { getDatabase, ref, onValue } from 'firebase/database';
 
 const screenWidth = Dimensions.get('window').width;
 
-const CSRUsageAnalyticsCard = ({ onChartPress }) => {
+const PharmaUsageAnalyticsCard = ({ onChartPress }) => {
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [pieChartData, setPieChartData] = useState([]);
   const [barChartData, setBarChartData] = useState(null);
@@ -14,7 +14,7 @@ const CSRUsageAnalyticsCard = ({ onChartPress }) => {
 
   useEffect(() => {
     const db = getDatabase();
-    const historyRef = ref(db, '/supplyHistoryTransfer'); // Correct Firebase reference
+    const historyRef = ref(db, 'medicineTransferHistory'); // Correct Firebase reference
 
     const fetchData = () => {
       onValue(historyRef, (snapshot) => {
@@ -238,4 +238,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CSRUsageAnalyticsCard;
+export default PharmaUsageAnalyticsCard;

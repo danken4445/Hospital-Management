@@ -1,35 +1,35 @@
-import React from 'react';
-import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, ImageBackground, Platform, Text } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, TouchableOpacity, Text, ImageBackground, Platform } from 'react-native';
 import FeatureCard from './../../components/Card';
-import UsageAnalyticsCard from './../../components/UsageAnalyticsCard';
 import Toast from 'react-native-toast-message';
+import UsageAnalyticsCard from '@/src/components/PharmaUsageAnalyticsCard';
 
-const { height } = Dimensions.get('window');
+const { height, width: screenWidth } = Dimensions.get('window');
 
-const ICUDashboard = ({ navigation }) => {
-
+const PharmaDashboard = ({ navigation }) => {
+  
   const handleInventoryHistoryPress = () => {
     Toast.show({
       type: 'success',
       position: 'bottom',
-      text1: 'Navigating to Inventory History',
-      visibilityTime: 3000,
+      text1: 'Navigating to Pharmacy Transfer History',
+      visibilityTime: 3000,   
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('InventoryHistory');
+    navigation.navigate('MedicinesTransferHistory');
   };
 
   const handleInventoryScreenPress = () => {
     Toast.show({
       type: 'success',
       position: 'bottom',
-      text1: 'Navigating to ICU Inventory Screen',
+      text1: 'Navigating to Pharmacy Local Inventory',
       visibilityTime: 3000,
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('ICUlocalInventory');
+    navigation.navigate('LocalInventoryPharmacy');
   };
 
   const handleUsageAnalyticsPress = (chartType) => {
@@ -41,8 +41,9 @@ const ICUDashboard = ({ navigation }) => {
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('UsageAnalyticsScreen', { chartType });
+    navigation.navigate('MedicineAnalyticsScreen', { chartType });
   };
+
   const handleStockTransferPress = (chartType) => {
     Toast.show({
       type: 'success',
@@ -64,35 +65,30 @@ const ICUDashboard = ({ navigation }) => {
             <UsageAnalyticsCard onChartPress={handleUsageAnalyticsPress} />
           </View>
           <View style={styles.featureCardContainer}>
-            <Text style={styles.titleText}>ICU Dashboard</Text>
+            <Text style={styles.titleText}>Pharmacy Dashboard</Text>
             <View style={styles.grid}>
-              <FeatureCard
-                title="Inventory"
-                icon={require('../../../assets/inventory.png')}
-                onPress={handleInventoryScreenPress}
-              />
-              <FeatureCard
+              <FeatureCard 
                 title="Overall Inventory"
                 icon={require('../../../assets/inventoryOverall.png')}
-                onPress={() => navigation.navigate('Overallinventory')}
+                onPress={() => navigation.navigate('PharmaOverallInventory')}
               />
               
               <FeatureCard
-                title="Inventory Scanner"
-                icon={require('../../../assets/inventoryScanner.png')}
-                onPress={() => navigation.navigate('InventoryScanner')}
+                title="Pharmacy Inventory"
+                icon= {require('../../../assets/inventory.png')}
+                onPress={() => navigation.navigate('PharmaLocalInventory')}
               />
              
               <FeatureCard
-                title="Inventory History"
+                title="Transfer History"
                 icon={require('../../../assets/inventoryHistory.png')}
                 onPress={handleInventoryHistoryPress}
               />
-              <FeatureCard
+              {/* <FeatureCard
                 title="Stocks Transfer"
-                icon={require('../../../assets/inventoryHistory.png')}
+                icon={require('../../../assets/stockTransfer.png')}
                 onPress={handleStockTransferPress}
-              />
+              />  */}
             </View>
           </View>
         </ScrollView>
@@ -104,7 +100,7 @@ const ICUDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   imageBackground: {
     flex: 1,
-    resizeMode: 'cover', // Ensure the image covers the entire background
+    resizeMode: 'cover',
   },
   safeAreaView: {
     flex: 1,
@@ -122,7 +118,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   featureCardContainer: {
-    backgroundColor: 'rgba(251, 251, 249, 0.9)', // Add slight transparency to see the background image
+    backgroundColor: 'rgba(251, 251, 249, 0.9)',
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 5 },
@@ -133,22 +129,38 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 64,
     borderTopRightRadius: 64,
     marginTop: -34,
-    paddingBottom: 40, // Add padding to the bottom to avoid overlap with home bar
+    paddingBottom: 40,
   },
-  titleText:{
-  textAlign: 'center',
-  fontSize: 32,
-  marginTop: -24,
-  fontWeight: 'bold',
-  color: 'maroon',
-},
+
+  featureCardContainer1: {
+    backgroundColor: 'rgba(251, 251, 249, 0.9)',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 44,
+    height: '80%',
+    paddingTop: 34,
+    paddingHorizontal: 10,
+    borderTopLeftRadius: 64,
+    borderTopRightRadius: 64,
+    marginTop: -34,
+    paddingBottom: 40,
+    paddingRight:12,
+  },
 
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: Platform.OS === 'ios' ? 20 : 10, // Different padding for iOS
+    paddingHorizontal: Platform.OS === 'ios' ? 20 : 10,
+  },
+  titleText: {
+    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginTop: -21,
+    color: 'maroon',
   },
 });
 
-export default ICUDashboard;
+export default PharmaDashboard;

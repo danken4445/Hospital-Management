@@ -2,23 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import { getDatabase, ref, get } from 'firebase/database';
+import { auth } from '../../../../firebaseConfig'; // Assuming auth is configured for fetching user info
 
-const PatientScanner = ({ navigation }) => {
+const DeptPatientScanner = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [userDepartment, setUserDepartment] = useState('');
 
   useEffect(() => {
+    // Request camera permission
     (async () => {
       const { status } = await BarCodeScanner.requestPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
+
+    // Fetch logged-in user's department (roomType)
+    const fetchUserDepartment = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const db = getDatabase();
+        const userRef = ref(db, `users/${user.uid}`);
+        const snapshot = await get(userRef);
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
+          setUserDepartment(userData.role); // Assuming role corresponds to the department (e.g., ICU, ER)
+        }
+      }
+    };
+
+    fetchUserDepartment();
   }, []);
 
   const handleBarCodeScanned = async ({ type, data }) => {
     console.log('Scanned ID:', data);
     setScanned(true);
     setLoading(true);
+    
     try {
       const db = getDatabase();
       const patientRef = ref(db, `patient/${data}`);
@@ -26,10 +46,17 @@ const PatientScanner = ({ navigation }) => {
       const snapshot = await get(patientRef);
 
       if (snapshot.exists()) {
-        console.log('Patient data found:', snapshot.val());
-        setLoading(false);
-        // Navigate to PatientInfoScreen with patient data
-        navigation.navigate('PatientInfo', { patientData: snapshot.val() });
+        const patientData = snapshot.val();
+        console.log('Patient data found:', patientData);
+
+        // Check if the patient's roomType matches the user's department
+        if (patientData.roomType === userDepartment) {
+          setLoading(false);
+          navigation.navigate('DeptPatientInfoScreen', { patientData });
+        } else {
+          setLoading(false);
+          Alert.alert('Access Denied', 'You do not have permission to access this patient\'s data.');
+        }
       } else {
         console.log('No patient data found for ID:', data);
         Alert.alert('No Data', `No patient data found for the scanned ID: ${data}.`);
@@ -107,4 +134,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PatientScanner;
+export default DeptPatientScanner;

@@ -5,67 +5,60 @@ import { Card } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 
 const OverallInventory = () => {
-  const [overallSupplies, setOverallSupplies] = useState([]);
+  const [overallMeds, setOverallMeds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredSupplies, setFilteredSupplies] = useState([]);
+  const [filteredMeds, setFilteredMeds] = useState([]);
   const navigation = useNavigation();
 
   useEffect(() => {
     const db = getDatabase();
-    const departmentsRef = ref(db, 'departments');
+    const pharmacyRef = ref(db, 'departments/Pharmacy/localMeds'); // Firebase path to localMeds
 
     const fetchInventory = () => {
-      let supplyTotals = {};
+      let medsTotals = {};
 
-      // Fetch department-specific localSupplies for all departments
-      onValue(departmentsRef, (snapshot) => {
+      // Fetch localMeds under Pharmacy
+      onValue(pharmacyRef, (snapshot) => {
         if (snapshot.exists()) {
-          const departmentsData = snapshot.val();
+          const medsData = snapshot.val();
 
-          for (const deptKey in departmentsData) {
-            const department = departmentsData[deptKey];
-            if (department.localSupplies) {
-              for (const supplyKey in department.localSupplies) {
-                const supply = department.localSupplies[supplyKey];
+          // Aggregate medicines from localMeds
+          for (const medKey in medsData) {
+            const med = medsData[medKey];
 
-                // If the item is already in supplyTotals, aggregate the quantities
-                if (supplyTotals[supply.itemName]) {
-                  supplyTotals[supply.itemName].totalQuantity += supply.quantity;
-                  supplyTotals[supply.itemName].departments.push({
-                    departmentName: deptKey,
-                    quantity: supply.quantity,
-                    brand: supply.brand,
-                  });
-                } else {
-                  // If the item is not in supplyTotals, create a new entry
-                  supplyTotals[supply.itemName] = {
-                    totalQuantity: supply.quantity,
-                    brand: supply.brand,
-                    departments: [
-                      {
-                        departmentName: deptKey,
-                        quantity: supply.quantity,
-                        brand: supply.brand,
-                      },
-                    ],
-                  };
-                }
-              }
+            // Ensure itemName and quantity exist
+            const itemName = med.itemName || 'Unknown Medicine';
+            const quantity = med.quantity || 0;
+            const brand = med.brand || 'Unknown Brand';
+
+            // If the item is already in medsTotals, aggregate the quantities
+            if (medsTotals[itemName]) {
+              medsTotals[itemName].totalQuantity += quantity;
+              medsTotals[itemName].brand = brand; // Keep brand consistent
+            } else {
+              // If the item is not in medsTotals, create a new entry
+              medsTotals[itemName] = {
+                totalQuantity: quantity,
+                brand: brand,
+              };
             }
           }
 
           // Transform the final result into an array for display
-          const supplyArray = Object.keys(supplyTotals).map((itemName) => ({
+          const medsArray = Object.keys(medsTotals).map((itemName) => ({
             itemName,
-            totalQuantity: supplyTotals[itemName].totalQuantity,
-            brandName: supplyTotals[itemName].brand,
-            departments: supplyTotals[itemName].departments,
+            totalQuantity: medsTotals[itemName].totalQuantity,
+            brandName: medsTotals[itemName].brand,
           }));
 
-          setOverallSupplies(supplyArray);
-          setFilteredSupplies(supplyArray);
+          setOverallMeds(medsArray);
+          setFilteredMeds(medsArray);
           setLoading(false);
+        } else {
+          // If snapshot does not exist
+          setLoading(false);
+          console.log('No data found');
         }
       });
     };
@@ -77,38 +70,38 @@ const OverallInventory = () => {
     setSearchQuery(query);
 
     if (query === '') {
-      setFilteredSupplies(overallSupplies);
+      setFilteredMeds(overallMeds);
     } else {
-      const filteredData = overallSupplies.filter((item) =>
+      const filteredData = overallMeds.filter((item) =>
         item.itemName.toLowerCase().includes(query.toLowerCase())
       );
-      setFilteredSupplies(filteredData);
+      setFilteredMeds(filteredData);
     }
   };
 
-  const navigateToSupplyDetails = (supply) => {
-    navigation.navigate('SupplyDetails', { supply });
+  const navigateToMedDetails = (med) => {
+    navigation.navigate('MedicineDetails', { med });
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Overall Inventory</Text>
+      <Text style={styles.title}>Overall Medicine Inventory</Text>
 
       {/* Search Bar */}
       <TextInput
         style={styles.searchBar}
-        placeholder="Search for supplies..."
+        placeholder="Search for medicines..."
         value={searchQuery}
         onChangeText={handleSearch}
       />
 
       {loading ? (
         <ActivityIndicator size="large" color="#00796b" />
-      ) : (
+      ) : filteredMeds.length > 0 ? (
         <FlatList
-          data={filteredSupplies}
+          data={filteredMeds}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => navigateToSupplyDetails(item)}>
+            <TouchableOpacity onPress={() => navigateToMedDetails(item)}>
               <Card style={styles.card}>
                 <View style={styles.cardContent}>
                   <Text style={styles.itemName}>{item.itemName}</Text>
@@ -120,6 +113,8 @@ const OverallInventory = () => {
           )}
           keyExtractor={(item) => item.itemName}
         />
+      ) : (
+        <Text style={styles.noDataText}>No Medicines Found</Text>
       )}
     </View>
   );
@@ -170,6 +165,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#757575',
     marginTop: 4,
+  },
+  noDataText: {
+    textAlign: 'center',
+    color: '#757575',
+    marginTop: 20,
+    fontSize: 16,
   },
 });
 

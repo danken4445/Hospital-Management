@@ -14,7 +14,7 @@ const CSRInventoryScreen = () => {
 
   useEffect(() => {
     const db = getDatabase();
-    const csrInventoryRef = ref(db, 'supplies');
+    const csrInventoryRef = ref(db, 'departments/CSR/localSupplies');
 
     const fetchData = () => {
       onValue(csrInventoryRef, (snapshot) => {
