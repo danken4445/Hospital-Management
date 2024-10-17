@@ -1,105 +1,93 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from 'react-native';
-import { Card } from 'react-native-paper';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { Card, Title, Paragraph, Searchbar } from 'react-native-paper';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { format } from 'date-fns';
 
-const MedicinesTransferHistory = () => {
-  const [transferHistory, setTransferHistory] = useState([]);
-  const [filteredHistory, setFilteredHistory] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+
+const MedicineTransferHistory = () => {
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredHistory, setFilteredHistory] = useState([]);
 
   useEffect(() => {
     const db = getDatabase();
-    const historyRef = ref(db, 'medicineTransferHistory');
+    const transferHistoryRef = ref(db, 'medicineTransferHistory');
 
-    const fetchHistory = () => {
-      setLoading(true);
-      onValue(historyRef, (snapshot) => {
+    const fetchTransferHistory = () => {
+      onValue(transferHistoryRef, (snapshot) => {
         if (snapshot.exists()) {
-          const historyData = snapshot.val();
-          const historyArray = Object.keys(historyData).map((key) => ({
+          const data = snapshot.val();
+          const historyArray = Object.keys(data).map((key) => ({
             id: key,
-            ...historyData[key],
+            ...data[key],
           }));
-
-          // Sort by timestamp (latest first)
-          const sortedHistory = historyArray.sort(
-            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-          );
-
-          setTransferHistory(sortedHistory);
-          setFilteredHistory(sortedHistory);
-          setLoading(false);
-        } else {
-          setTransferHistory([]);
-          setFilteredHistory([]);
-          setLoading(false);
+          setHistory(historyArray);
+          setFilteredHistory(historyArray);
         }
+        setLoading(false);
       });
     };
 
-    fetchHistory();
+    fetchTransferHistory();
   }, []);
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    if (query === '') {
-      setFilteredHistory(transferHistory);
-    } else {
-      const filteredData = transferHistory.filter(
-        (item) =>
-          item.itemName.toLowerCase().includes(query.toLowerCase()) ||
-          item.recipientDepartment.toLowerCase().includes(query.toLowerCase())
-      );
-      setFilteredHistory(filteredData);
-    }
-  };
+const handleSearch = (query) => {
+  setSearchQuery(query);
+  if (query === '') {
+    setFilteredHistory(transferHistory);
+  } else {
+    const filteredData = transferHistory.filter((item) => {
+      const itemName = item.itemName ? item.itemName.toLowerCase() : ''; // Handle missing itemName
+      const recipientDepartment = item.recipientDepartment ? item.recipientDepartment.toLowerCase() : ''; // Handle missing recipientDepartment
 
-  const formatDate = (timestamp) => {
-    return format(new Date(timestamp), 'dd MMM yyyy, hh:mm a');
-  };
+      return itemName.includes(query.toLowerCase()) || recipientDepartment.includes(query.toLowerCase());
+    });
+    setFilteredHistory(filteredData);
+  }
+};
 
   const renderItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <View style={styles.cardHeader}>
-          <Text style={styles.itemName}>{item.itemName}</Text>
-          <Text style={styles.timestamp}>{(item.timestamp)}</Text>
-        </View>
-        <Text style={styles.label}>Brand: {item.itemBrand}</Text>
-        <Text style={styles.label}>Quantity: {item.quantity}</Text>
-        <Text style={styles.label}>Recipient: {item.recipientDepartment}</Text>
-        <Text style={styles.label}>Sender: {item.sender}</Text>
-        <Text style={styles.label}>Reason: {item.reason}</Text>
+        <Title style={styles.cardTitle}>{item.itemName}</Title>
+        <Paragraph>
+          <Text style={styles.label}>Brand:</Text> {item.itemBrand}
+        </Paragraph>
+        <Paragraph>
+          <Text style={styles.label}>Quantity:</Text> {item.quantity}
+        </Paragraph>
+        <Paragraph>
+          <Text style={styles.label}>Sent by:</Text> {item.sender}
+        </Paragraph>
+        <Paragraph>
+          <Text style={styles.label}>Recipient Department:</Text> {item.recipientDepartment}
+        </Paragraph>
+        <Paragraph>
+        <Text style={styles.label}>Date:</Text> {(item.timestamp)}
+        </Paragraph>
       </Card.Content>
     </Card>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Medicines Transfer History</Text>
-
-      {/* Search Bar */}
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Search by item name or department..."
+      <Searchbar
+        placeholder="Search by item, brand, department or sender"
         value={searchQuery}
         onChangeText={handleSearch}
+        style={styles.searchBar}
       />
-
       {loading ? (
-        <ActivityIndicator size="large" color="#6200ea" />
-      ) : filteredHistory.length > 0 ? (
+        <ActivityIndicator size="large" color="#7a0026" />
+      ) : (
         <FlatList
           data={filteredHistory}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}
         />
-      ) : (
-        <Text style={styles.noDataText}>No transfer history available.</Text>
       )}
     </View>
   );
@@ -111,58 +99,34 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#f8f9fa',
   },
-  header: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#6200ea',
-  },
   searchBar: {
-    height: 50,
-    borderColor: '#ddd',
-    borderWidth: 1,
+    marginBottom: 15,
     borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 20,
-    backgroundColor: '#fff',
-    fontSize: 16,
-  },
-  card: {
-    backgroundColor: '#fff',
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 3,
-    padding: 10,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  itemName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  timestamp: {
-    fontSize: 14,
-    color: '#888',
-  },
-  label: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 4,
   },
   listContainer: {
     paddingBottom: 10,
   },
-  noDataText: {
+  card: {
+    marginBottom: 10,
+    borderRadius: 12,
+    elevation: 3,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    padding: 10,
+  },
+  cardTitle: {
     fontSize: 18,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 50,
+    fontWeight: 'bold',
+    color: '#7a0026',
+    marginBottom: 5,
+  },
+  label: {
+    fontWeight: 'bold',
+    color: '#333',
   },
 });
 
-export default MedicinesTransferHistory;
+export default MedicineTransferHistory;

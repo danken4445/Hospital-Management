@@ -182,6 +182,7 @@ const RoleDropdown = ({ role, setRole }) => {
         <Menu.Item onPress={() => handleRoleSelect('inpatient')} title="Inpatient" />
         <Menu.Item onPress={() => handleRoleSelect('Pharmacy')} title="Pharmacy" />
         <Menu.Item onPress={() => handleRoleSelect('ER')} title="ER" />
+        <Menu.Item onPress={() => handleRoleSelect('COVID UNIT')} title="COVID UNIT" />
 
       </Menu>
     </View>

@@ -64,31 +64,6 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
     fetchUserDepartment();
   }, [patientData]);
-
-  const handleSave = async () => {
-    const db = getDatabase();
-    const patientRef = ref(db, `patient/${patientData.qrData}`);
-
-    const updatedData = {
-      name,
-      birth,
-      contact,
-      diagnosis,
-      roomType,
-      status,
-      suppliesUsed,
-      medUse,
-      prescriptions
-    };
-
-    try {
-      await update(patientRef, updatedData);
-      Alert.alert('Success', 'Patient data updated successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'An error occurred while updating patient data.');
-    }
-  };
-
   const handleScan = (type) => {
     setScanningFor(type);
     setScanning(true);
@@ -137,8 +112,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
   
     // Validate that patientData fields are not undefined or null
     const patientId = patientData.qrData ? patientData.qrData : 'Unknown ID';
-    const patientFName = patientData.firstName ? patientData.firstName : 'Unknown Name';
-    const patientLName = patientData.lastName ? patientData.lastName : 'Unknown Name';
+    const firstName = patientData.firstName ? patientData.firstName : 'Unknown Name';
+    const lastName = patientData.lastName ? patientData.lastName : 'Unknown Name';
   
     // Validate that itemName, quantity, and type are defined
     if (!itemName || !quantity || !type) {
@@ -148,8 +123,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
   
     const historyData = {
       patientId,
-      patientFName,
-      patientLName,
+      firstName,
+      lastName,
       itemName,
       quantity,
       type,
@@ -241,6 +216,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
               name: scannedItems[scannedItems.length - 1].itemName,
               quantity: (prev[scannedItems[scannedItems.length - 1].id]?.quantity || 0) + quantityToUse,
               lastUsed: timestamp,
+              retailPrice: retailPrice
+
             },
           }));
         } else if (scanningFor === 'medicines') {
@@ -250,6 +227,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
               name: scannedItems[scannedItems.length - 1].itemName,
               quantity: (prev[scannedItems[scannedItems.length - 1].id]?.quantity || 0) + quantityToUse,
               lastUsed: timestamp,
+              retailPrice: retailPrice
+          
             },
           }));
         }
@@ -278,6 +257,100 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
     ));
   };
 
+  const handleSaveAll = async () => {
+    const db = getDatabase();
+    const patientRef = ref(db, `patient/${patientData.qrData}`);
+
+    const updatedData = {
+      name,
+      birth,
+      contact,
+      diagnosis,
+      roomType,
+      status,
+      suppliesUsed,
+      medUse,
+      prescriptions
+      
+    };
+
+    try {
+      // Update patient data
+      await update(patientRef, updatedData);
+
+// Save all scanned items (if any)
+for (let scannedItem of scannedItems) {
+  const quantityToUse = parseInt(quantity, 10);
+  if (!isNaN(quantityToUse) && quantityToUse > 0) {
+    let itemRef;
+    let itemDetails = {}; // Store item details, including retailPrice
+
+    if (scanningFor === 'supplies') {
+      itemRef = ref(db, `departments/${userDepartment}/localSupplies/${scannedItem.id}`);
+    } else if (scanningFor === 'medicines') {
+      itemRef = ref(db, `departments/${userDepartment}/localMeds/${scannedItem.id}`);
+    }
+
+    // Fetch the item details including retailPrice
+    const snapshot = await get(itemRef);
+    if (snapshot.exists()) {
+      itemDetails = snapshot.val(); // This contains all item details including retailPrice
+    } else {
+      Alert.alert('Error', 'Item details not found for ' + scannedItem.itemName);
+      continue; // Skip this item if details are not found
+    }
+
+    if (scannedItem.quantity >= quantityToUse) {
+      const updatedQuantity = scannedItem.quantity - quantityToUse;
+      await update(itemRef, { quantity: updatedQuantity });
+
+      const timestamp = new Date().toISOString();
+      const retailPrice = itemDetails.retailPrice || 0; // Use 0 if retailPrice is not available
+
+      if (scanningFor === 'supplies') {
+        setSuppliesUsed((prev) => ({
+          ...prev,
+          [scannedItem.id]: {
+            name: scannedItem.itemName,
+            quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
+            lastUsed: timestamp,
+            retailPrice: retailPrice, // Store the retailPrice
+          },
+        }));
+      } else if (scanningFor === 'medicines') {
+        setMedUse((prev) => ({
+          ...prev,
+          [scannedItem.id]: {
+            name: scannedItem.itemName,
+            quantity: (prev[scannedItem.id]?.quantity || 0) + quantityToUse,
+            lastUsed: timestamp,
+            retailPrice: retailPrice, // Store the retailPrice
+          },
+        }));
+      }
+
+      await logInventoryHistory(scannedItem.itemName, quantityToUse, scanningFor);
+    } else {
+      Alert.alert('Error', 'Insufficient quantity in inventory for ' + scannedItem.itemName);
+    }
+  }
+}
+
+Alert.alert('Success', 'Data saved successfully!');
+setScannedItems([]); // Clear scanned items after saving
+setQuantity('');
+  
+    } catch (error) {
+      Alert.alert('Error', 'An error occurred while saving data.');
+    }
+  };
+
+  const handleRemoveScannedItem = (itemId) => {
+    setScannedItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
+  };
+
+
+
   const renderScannedItems = () => {
     return scannedItems.map((item, index) => (
       <Card key={index} style={styles.scannedItemCard}>
@@ -286,9 +359,16 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
           <Paragraph>Quantity: {item.quantity}</Paragraph>
           <Paragraph>Type: {scanningFor === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
         </Card.Content>
+        <IconButton
+          icon="close"
+          color="#FF0000"
+          onPress={() => handleRemoveScannedItem(item.id)}
+          style={styles.removeIcon}
+        />
       </Card>
     ));
   };
+
 
   return (
     <View style={styles.fullScreenContainer}>
@@ -358,11 +438,6 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionHeader}>Scanned Items</Text>
             {renderScannedItems()}
-            <Button
-              title="Save"
-              color="#4CAF50"
-              onPress={handleSaveScannedItem}
-            />
           </View>
         )}
                 {/* Prescriptions Section */}
@@ -377,7 +452,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         </View>
 
 
-        <Button title="Save" color="#4CAF50" onPress={handleSave} />
+        <Button title="Save" color="#4CAF50" onPress={handleSaveAll} />
       </ScrollView>
             {/* Prescription Modal */}
             <Modal visible={prescriptionModalVisible} transparent={true} animationType="slide">
@@ -498,6 +573,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   label: {
+    marginTop: 16,
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
@@ -569,6 +645,11 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginBottom: 20,
   },
+  removeIcon: { 
+    position: 'absolute', 
+    top: 0, 
+    right: 0 },
+
 });
 
 export default DeptPatientInfoScreen;

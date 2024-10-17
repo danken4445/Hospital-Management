@@ -4,7 +4,7 @@ import { getDatabase, ref, onValue } from 'firebase/database';
 import { Card } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 
-const OverallInventory = () => {
+const PharmaOverallInventory = () => {
   const [overallMeds, setOverallMeds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,10 +56,14 @@ const OverallInventory = () => {
           setFilteredMeds(medsArray);
           setLoading(false);
         } else {
-          // If snapshot does not exist
-          setLoading(false);
+          // If no data is found
           console.log('No data found');
+          setLoading(false);
         }
+      }, (error) => {
+        // Log errors
+        console.error('Error fetching data:', error);
+        setLoading(false);
       });
     };
 
@@ -73,7 +77,7 @@ const OverallInventory = () => {
       setFilteredMeds(overallMeds);
     } else {
       const filteredData = overallMeds.filter((item) =>
-        item.itemName.toLowerCase().includes(query.toLowerCase())
+        item.itemName ? item.itemName.toLowerCase().includes(query.toLowerCase()) : false
       );
       setFilteredMeds(filteredData);
     }
@@ -174,4 +178,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OverallInventory;
+export default PharmaOverallInventory;

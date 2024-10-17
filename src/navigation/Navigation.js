@@ -15,14 +15,15 @@ import InventoryScanner from '../screens/AdminScreens/InventoryScanner';
 import UsageAnalyticsScreen from '../screens/AdminScreens/UsageAnalyticsScreen';
 
 //CSR SCREENS
-import CSRdashboardScreen from '../screens/CSRscreens/CSRdashboardScreen';
+import CSRdashboard from '../screens/CSRscreens/CSRdashboardScreen';
 import OverallInventory from './../screens/CSRscreens/OverallInventoryScreen';
 import CSRinventoryHistory from './../screens/CSRscreens/CSRinventoryHistory';
 import LocalInventory from './../screens/CSRscreens/LocalInventory';
-import StockTransfer from './../screens/CSRscreens/StockTransfer';
+import StockTransferScreen from '../screens/CSRscreens/StockTransfer';
 import SupplyDetails from '../screens/CSRscreens/SupplyDetails';
 import TransferHistory from '../screens/CSRscreens/TransferHistory';
 import CSRInventoryScanner from '../screens/CSRscreens/CSRscanner';
+import SupplyAnalyticsScreen from '../screens/CSRscreens/SupplyAnalyticsScreen';
 
 //Department Screens
 import DepartmentScreen from '../screens/DepartmentsScreen/DepartmentSreens/DepartmentScreen';
@@ -58,7 +59,7 @@ const Navigation = () => {
         <Stack.Screen name="PatientInfo" component={PatientInfoScreen} /> 
         <Stack.Screen name="InventoryHistory" component={InventoryHistory} /> 
         <Stack.Screen name="InventoryScreen" component={InventoryScreen} /> 
-        <Stack.Screen name="CSRdashboardScreen" component={CSRdashboardScreen} /> 
+        <Stack.Screen name="CSRdashboard" component={CSRdashboard} /> 
         <Stack.Screen name="CSRInventoryScanner" component={CSRInventoryScanner}/>
         <Stack.Screen name="TransferHistory" component={TransferHistory}/>
         <Stack.Screen name="InventoryScanner" component={InventoryScanner} />
@@ -66,8 +67,9 @@ const Navigation = () => {
         <Stack.Screen name="Overallinventory" component={OverallInventory}/>
         <Stack.Screen name="CSRinventoryHistory" component={CSRinventoryHistory}/>
         <Stack.Screen name="LocalInventoryCSR" component={LocalInventory}/>
-        <Stack.Screen name="StockTransfer" component={StockTransfer}/>
+        <Stack.Screen name="StockTransferScreen" component={StockTransferScreen}/>
         <Stack.Screen name="SupplyDetails" component={SupplyDetails}/>
+        <Stack.Screen name="SupplyAnalyticsScreen" component={SupplyAnalyticsScreen}/>
 
 
         <Stack.Screen name="DepartmentScreen" component={DepartmentScreen}/>

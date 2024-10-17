@@ -2,30 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Button, Alert, ScrollView } from 'react-native';
 import { getDatabase, ref, update, get, push } from 'firebase/database';
 import { auth } from '../../../firebaseConfig'; // Adjust the import path
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { Picker } from '@react-native-picker/picker';
+import { useRoute, useNavigation } from '@react-navigation/native'; // Import for navigation and route
+import { Picker } from '@react-native-picker/picker'; // Correct Picker import
 
-const PharmaStockTransferScreen = () => {
+const StockTransferScreen = () => {
   const [departments, setDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [quantity, setQuantity] = useState('');
   const [itemName, setItemName] = useState('');
   const [itemBrand, setItemBrand] = useState('');
   const [userInfo, setUserInfo] = useState(null); // To store logged-in user info
-  const [medicines, setMedicines] = useState([]);
+  const [supplies, setSupplies] = useState([]);
 
   const db = getDatabase();
   const navigation = useNavigation();
-  const route = useRoute();
+  const route = useRoute(); // Initialize route to receive params
 
   useEffect(() => {
-    // Fetch departments excluding Pharmacy
+    // Fetch departments excluding CSR
     const fetchDepartments = async () => {
       const departmentsRef = ref(db, 'departments');
       const snapshot = await get(departmentsRef);
       if (snapshot.exists()) {
         const deptData = snapshot.val();
-        const departmentList = Object.keys(deptData).filter(dept => dept !== 'Pharmacy');
+        const departmentList = Object.keys(deptData).filter(dept => dept !== 'CSR');
         setDepartments(departmentList);
       }
     };
@@ -49,108 +49,113 @@ const PharmaStockTransferScreen = () => {
       setItemBrand(itemDetails.brand);
     }
 
-    // Fetch available medicines from the Pharmacy department
-    const fetchMedicines = async () => {
-      const medsRef = ref(db, 'departments/Pharmacy/localMeds');
-      const snapshot = await get(medsRef);
+    // Fetch available supplies from the CSR department
+    const fetchSupplies = async () => {
+      const suppliesRef = ref(db, 'departments/Pharmacy/localMeds');
+      const snapshot = await get(suppliesRef);
       if (snapshot.exists()) {
-        const medicineList = Object.entries(snapshot.val()).map(([key, value]) => ({
+        const supplyList = Object.entries(snapshot.val()).map(([key, value]) => ({
           id: key,
           ...value
         }));
-        setMedicines(medicineList);
+        setSupplies(supplyList);
       }
     };
 
+  
+    
+
     fetchDepartments();
     fetchUserInfo();
-    fetchMedicines();
-  }, [route.params]);
+    fetchSupplies();
+  }, [route.params]); // Add route.params as dependency to re-fetch when itemDetails change
 
   const handleTransfer = async () => {
     if (!selectedDepartment || !quantity || !itemName || !itemBrand) {
       Alert.alert('Error', 'Please fill in all the fields');
       return;
     }
-
+  
     const transferQuantity = parseInt(quantity, 10);
     if (isNaN(transferQuantity) || transferQuantity <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity');
       return;
     }
-
     const formatDateToLocal = (date) => {
       const offset = date.getTimezoneOffset();
       const adjustedDate = new Date(date.getTime() - offset * 60 * 1000);
       return adjustedDate.toISOString().slice(0, 16).replace('T', ' ');
     };
+    
+  
+    // Find the supply item from the CSR supplies
+// Find the supply item from the CSR supplies (Case-insensitive and trimmed comparison)
+const supplyItem = supplies.find(
+  (item) => 
+    item.itemName.trim().toLowerCase() === itemName.trim().toLowerCase() &&
+    item.brand.trim().toLowerCase() === itemBrand.trim().toLowerCase()
+);
 
-    // Find the medicine item from Pharmacy's localMeds
-    const medicineItem = medicines.find(
-      (item) => item.itemName === itemName && item.brand === itemBrand
-    );
-
-    if (!medicineItem) {
-      Alert.alert('Error', 'Medicine item not found.');
+if (!supplyItem) {
+  Alert.alert('Error', 'Supply item not found.');
+  return;
+}
+  
+    if (supplyItem.quantity < transferQuantity) {
+      Alert.alert('Error', 'Insufficient stock in CSR.');
       return;
     }
-
-    if (medicineItem.quantity < transferQuantity) {
-      Alert.alert('Error', 'Insufficient stock in Pharmacy.');
-      return;
-    }
-
+  
     try {
-      // Deduct from Pharmacy stock
-      const updatedPharmacyQuantity = medicineItem.quantity - transferQuantity;
-      const medicineItemRef = ref(db, `departments/Pharmacy/localMeds/${medicineItem.id}`);
-      await update(medicineItemRef, { quantity: updatedPharmacyQuantity });
-
-      // Update or create the item in the selected department's localMeds
-      const departmentMedsRef = ref(db, `departments/${selectedDepartment}/localMeds`);
-      const departmentSnapshot = await get(departmentMedsRef);
-      const departmentMeds = departmentSnapshot.exists() ? departmentSnapshot.val() : {};
-
+      // Deduct from CSR stock
+      const updatedCSRQuantity = supplyItem.quantity - transferQuantity;
+      const supplyItemRef = ref(db, `departments/Pharmacy/localMeds/${supplyItem.id}`);
+      await update(supplyItemRef, { quantity: updatedCSRQuantity });
+  
+      // Update or create the item in the selected department's localSupplies
+      const departmentSupplyRef = ref(db, `departments/${selectedDepartment}/localMeds`);
+      const departmentSnapshot = await get(departmentSupplyRef);
+      const departmentSupplies = departmentSnapshot.exists() ? departmentSnapshot.val() : {};
+  
       let foundItem = false;
-      for (const key in departmentMeds) {
-        if (departmentMeds[key].itemName === itemName && departmentMeds[key].brand === itemBrand) {
+      for (const key in departmentSupplies) {
+        if (departmentSupplies[key].itemName === itemName && departmentSupplies[key].brand === itemBrand) {
           // If the item already exists in the department, update its quantity
-          const updatedQuantity = departmentMeds[key].quantity + transferQuantity;
+          const updatedQuantity = departmentSupplies[key].quantity + transferQuantity;
           await update(ref(db, `departments/${selectedDepartment}/localMeds/${key}`), { quantity: updatedQuantity });
           foundItem = true;
           break;
         }
       }
-
+  
       if (!foundItem) {
-        // If the item doesn't exist, create a new entry in localMeds
-        const newMedKey = push(departmentMedsRef).key;
-        const newMedicineItem = {
+        // If the item doesn't exist, create a new entry in localSupplies
+        const newSupplyKey = push(departmentSupplyRef).key;
+        const newSupplyItem = {
           brand: itemBrand,
           itemName,
           quantity: transferQuantity,
-          timestamp:  new Date().toISOString(),
+          timestamp: formatDateToLocal(new Date()), // Use the formatted timestamp here
           createdBy: `${userInfo.firstName} ${userInfo.lastName}`,
         };
-        await update(ref(db, `departments/${selectedDepartment}/localMeds/${newMedKey}`), newMedicineItem);
+        await update(ref(db, `departments/${selectedDepartment}/localMeds/${newSupplyKey}`), newSupplyItem);
       }
-
-      // Log the transfer in InventoryHistoryTransfer under Pharmacy
-      const transferHistoryRefPharmacy = ref(db, 'medicineTransferHistory');
-      const newTransferKeyPharmacy = push(transferHistoryRefPharmacy).key;
-      const transferDataPharmacy = {
+  
+      // Log the transfer in InventoryHistoryTransfer under CSR
+      const transferHistoryRefCSR = ref(db, 'medicineTransferHistory');
+      const newTransferKeyCSR = push(transferHistoryRefCSR).key;
+      const transferDataCSR = {
         sender: `${userInfo.firstName} ${userInfo.lastName}`,
         recipientDepartment: selectedDepartment,
         quantity: transferQuantity,
         itemName,
         itemBrand,
-        timestamp: formatDateToLocal(new Date()),
+        timestamp: formatDateToLocal(new Date()), // Use the formatted timestamp here
       };
-      await update(ref(db, `/medicineTransferHistory`), transferDataPharmacy);
+      await update(ref(db, `medicineTransferHistory/${newTransferKeyCSR}`), transferDataCSR);
+  
 
-      // Log the transfer in InventoryHistoryTransfer under recipient department
-   
-
+  
       Alert.alert('Success', 'Stock transferred successfully');
       setQuantity('');
       setItemName('');
@@ -159,11 +164,12 @@ const PharmaStockTransferScreen = () => {
       Alert.alert('Error', `Failed to transfer stock: ${error.message}`);
     }
   };
-
-  return (
+  
+    
+        return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Pharmacy Stock Transfer</Text>
-
+      <Text style={styles.header}>Stock Transfers</Text>
+      
       {/* Department Picker */}
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Select Department (Receiver)</Text>
@@ -260,4 +266,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PharmaStockTransferScreen;
+export default StockTransferScreen;
