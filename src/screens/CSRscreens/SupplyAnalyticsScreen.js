@@ -257,7 +257,7 @@ const SupplyAnalyticsScreen = () => {
     );
   };
 
-  
+  ``
   const getColor = (index) => {
     const colors = ['#4CAF50', '#FF5722', '#FFC107', '#2196F3', '#9C27B0', '#FF9800', '#00BCD4', '#E91E63', '#607D8B'];
     return colors[index % colors.length];
