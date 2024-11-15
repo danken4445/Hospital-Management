@@ -17,27 +17,27 @@ const LoginScreen = ({ navigation }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Fetch user department from Firebase Realtime Database
+      // Fetch user role and department from Firebase Realtime Database
       const userRef = ref(database, `users/${user.uid}`);
       const snapshot = await get(userRef);
 
       if (snapshot.exists()) {
         const userData = snapshot.val();
-
-        // Redirect users based on their department
-        switch (userData.department.toLowerCase()) {
+        
+        // Redirect users based on their role
+        switch (userData.role) {
           case 'admin':
             navigation.navigate('AdminDashboard'); // Admin Dashboard
             break;
           case 'csr':
-            navigation.navigate('CSRdashboard'); // CSR-specific screen
+            navigation.navigate('CSRdashboardScreen'); // CSR-specific screen
             break;
           case 'pharmacy':
             navigation.navigate('PharmaDashboard'); // Pharmacy-specific screen
             break;
           default:
             // For departments like ICU, Inpatient, etc., we redirect to a reusable 'DepartmentScreen'
-            navigation.navigate('DepartmentScreen', { department: userData.department }); 
+            navigation.navigate('DepartmentScreen', { department: userData.role }); 
             break;
         }
       } else {

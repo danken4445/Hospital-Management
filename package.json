@@ -23,10 +23,11 @@
     "@react-navigation/stack": "^6.4.1",
     "@types/react": "~18.3.12",
     "babel-plugin-module-resolver": "^5.0.2",
+    "barcode-scanner": "^0.1.1",
     "date-fns": "^4.1.0",
-    "expo": "^52.0.7",
+    "expo": "^51.0.39",
     "expo-barcode-scanner": "~13.0.1",
-    "expo-camera": "~16.0.5",
+    "expo-camera": "~15.0.16",
     "expo-cli": "^6.3.10",
     "expo-screen-orientation": "~8.0.0",
     "expo-status-bar": "~2.0.0",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@types/react-native": "^0.72.8",
     "jscodeshift": "^0.15.2",
     "prettier": "^3.3.3"
   },

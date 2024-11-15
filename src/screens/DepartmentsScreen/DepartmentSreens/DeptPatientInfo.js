@@ -1,4 +1,3 @@
-// Import statements
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,34 +5,36 @@ import {
   Alert,
   ScrollView,
   StatusBar,
-  TouchableOpacity,
-  Modal, // Import Modal from react-native
 } from 'react-native';
 import {
   Appbar,
-  TextInput,
   Button,
+  Provider as PaperProvider,
+  Snackbar,
+  Portal,
+  DefaultTheme,
   Card,
-  Title,
   Paragraph,
   IconButton,
-  Modal as PaperModal, // Rename Modal from react-native-paper
-  Portal,
-  Provider as PaperProvider,
-  DefaultTheme,
-  Subheading,
-  Divider,
-  Searchbar,
-  FAB,
-  Snackbar,
 } from 'react-native-paper';
-import { BarCodeScanner } from 'expo-barcode-scanner';
-import { getDatabase, ref, get, update, push } from 'firebase/database';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { auth } from '../../../../firebaseConfig'; // Ensure this path is correct
+import { useCameraPermissions } from 'expo-camera';
+import { getDatabase, ref, get, update, set, push } from 'firebase/database';
+import { auth } from '../../../../firebaseConfig';
+
+// Import components
+import PersonalInformationCard from '../DeptComponents/PersonalInformationCard';
+import SuppliesUsedCard from '../DeptComponents/SuppliesUsedCard';
+import MedicinesUsedCard from '../DeptComponents/MedicinesUsedCard';
+import ScannedItemsCard from '../DeptComponents/ScannedItemCard';
+import PrescriptionsCard from '../DeptComponents/PrescriptionCard';
+import PrescriptionModal from '../DeptComponents/PrescriptionModal';
+import QuantityModal from '../DeptComponents/QuantityModal';
+import BarcodeScannerModal from '../DeptComponents/BarcodeScannerModal';
 
 const DeptPatientInfoScreen = ({ route, navigation }) => {
   const { patientData } = route.params;
+
+  // **State Variables**
   const [name, setName] = useState(patientData.firstName);
   const [lastName, setLastName] = useState(patientData.lastName);
   const [birth, setBirth] = useState(patientData.birth);
@@ -55,7 +56,9 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
   const [quantity, setQuantity] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [addPrescription, setAddPrescription] = useState(false);
-  const [prescriptions, setPrescriptions] = useState([]);
+  const [prescriptions, setPrescriptions] = useState(
+    patientData.prescriptions || {}
+  );
   const [prescriptionName, setPrescriptionName] = useState('');
   const [dosage, setDosage] = useState('');
   const [instruction, setInstruction] = useState('');
@@ -69,20 +72,11 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  useEffect(() => {
-    setName(patientData.firstName);
-    setLastName(patientData.lastName);
-    setBirth(patientData.birth);
-    setContact(patientData.contact);
-    setDiagnosis(patientData.diagnosis);
-    setRoomType(patientData.roomType);
-    setStatus(patientData.status);
-    setSuppliesUsed(
-      Array.isArray(patientData.suppliesUsed) ? patientData.suppliesUsed : []
-    );
-    setMedUse(Array.isArray(patientData.medUse) ? patientData.medUse : []);
-    setPrescriptions(patientData.prescriptions || {});
+  // **Camera Permissions Hook**
+  const [permission, requestPermission] = useCameraPermissions();
 
+  // **useEffect Hook**
+  useEffect(() => {
     const fetchUserDepartment = async () => {
       const user = auth.currentUser;
       if (user) {
@@ -100,12 +94,16 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
     // Request camera permissions
     (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Error', 'Camera permissions are required to scan barcodes.');
+      if (!permission || permission.status !== 'granted') {
+        await requestPermission();
+        if (permission && permission.status !== 'granted') {
+          Alert.alert('Error', 'Camera permissions are required to scan barcodes.');
+        }
       }
     })();
-  }, [patientData]);
+  }, [patientData, permission]);
+
+  // **Event Handlers and Functions**
 
   const handleScan = (type) => {
     setScanningFor(type);
@@ -114,6 +112,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
   };
 
   const handleBarCodeScanned = async ({ type, data }) => {
+    if (!scanning) return;
     setScanning(false);
     setModalVisible(false);
 
@@ -136,7 +135,16 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
       if (snapshot.exists()) {
         const itemData = snapshot.val();
-        setCurrentScannedItem({ ...itemData, id: data, type: scanningFor });
+        const itemName =
+          scanningFor === 'medicines' ? itemData.genericName : itemData.itemName;
+        setCurrentScannedItem({
+          ...itemData,
+          id: data,
+          type: scanningFor,
+          name: itemName,
+          shortDesc: itemData.shortDesc || '',
+          standardDesc: itemData.standardDesc || '',
+        });
         setQuantityModalVisible(true);
       } else {
         Alert.alert('Error', 'Item not found in inventory.');
@@ -186,7 +194,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         } else {
           Alert.alert(
             'Insufficient Quantity',
-            `Only ${availableQuantity} units of ${currentScannedItem.itemName} are available.`
+            `Only ${availableQuantity} units of ${currentScannedItem.name} are available.`
           );
         }
       } else {
@@ -296,7 +304,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         if (snapshot.exists()) {
           itemDetails = snapshot.val();
         } else {
-          Alert.alert('Error', 'Item details not found for ' + scannedItem.itemName);
+          Alert.alert('Error', 'Item details not found for ' + scannedItem.name);
           continue;
         }
 
@@ -309,10 +317,12 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
           const usageEntry = {
             id: scannedItem.id,
-            name: scannedItem.itemName,
+            name: scannedItem.name,
             quantity: quantityToUse,
             timestamp: timestamp,
             retailPrice: retailPrice,
+            shortDesc: scannedItem.shortDesc || '',
+            standardDesc: scannedItem.standardDesc || '',
           };
 
           if (itemType === 'supplies') {
@@ -321,9 +331,9 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
             updatedMedUse.push(usageEntry);
           }
 
-          await logInventoryHistory(scannedItem.itemName, quantityToUse, itemType);
+          await logInventoryHistory(scannedItem.name, quantityToUse, itemType);
         } else {
-          Alert.alert('Error', 'Insufficient quantity in inventory for ' + scannedItem.itemName);
+          Alert.alert('Error', 'Insufficient quantity in inventory for ' + scannedItem.name);
         }
       }
 
@@ -339,8 +349,10 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         prescriptions,
       };
 
-      await update(patientRef, updatedData);
+      // Use 'set' instead of 'update' to ensure arrays are saved correctly
+      await set(patientRef, updatedData);
 
+      // Update local state
       setSuppliesUsed(updatedSuppliesUsed);
       setMedUse(updatedMedUse);
 
@@ -372,6 +384,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
           ...item,
           totalQuantity: item.quantity,
           latestTimestamp: item.timestamp,
+          shortDesc: item.shortDesc || '',
+          standardDesc: item.standardDesc || '',
         };
       } else {
         groupedItems[key].totalQuantity += item.quantity;
@@ -392,6 +406,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         <Card.Title title={item.name} />
         <Card.Content>
           <Paragraph>Quantity Used: {item.totalQuantity}</Paragraph>
+          <Paragraph>Short Description: {item.shortDesc || 'No short description available'}</Paragraph>
+          <Paragraph>Standard Description: {item.standardDesc || 'No standard description available'}</Paragraph>
           <Paragraph>
             Last Used: {new Date(item.latestTimestamp).toLocaleString() || 'N/A'}
           </Paragraph>
@@ -404,7 +420,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
     return scannedItems.map((item, index) => (
       <Card key={index} style={styles.scannedItemCard}>
         <Card.Title
-          title={item.itemName}
+          title={item.name}
           right={(props) => (
             <IconButton
               {...props}
@@ -415,7 +431,11 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         />
         <Card.Content>
           <Paragraph>Quantity: {item.quantity}</Paragraph>
-          <Paragraph>Type: {item.type === 'supplies' ? 'Supply' : 'Medicine'}</Paragraph>
+          <Paragraph>Short Description: {item.shortDesc || 'No short description available'}</Paragraph>
+          <Paragraph>Standard Description: {item.standardDesc || 'No standard description available'}</Paragraph>
+          <Paragraph>
+            Type: {item.type === 'supplies' ? 'Supply' : 'Medicine'}
+          </Paragraph>
         </Card.Content>
       </Card>
     ));
@@ -428,6 +448,10 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
     }
   };
 
+  // **Define itemDisplayName**
+  const itemDisplayName = currentScannedItem?.name || 'Unknown Item';
+
+  // **Render Method**
   return (
     <PaperProvider theme={theme}>
       <View style={styles.fullScreenContainer}>
@@ -438,146 +462,62 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         </Appbar.Header>
         <ScrollView contentContainerStyle={styles.container}>
           {/* Personal Information Section */}
-          <Card style={styles.sectionContainer}>
-            <Card.Title title="Personal Information" />
-            <Card.Content>
-              <TextInput
-                label="First Name"
-                value={name}
-                onChangeText={setName}
-                mode="outlined"
-                style={styles.input}
-              />
-              <TextInput
-                label="Last Name"
-                value={lastName}
-                onChangeText={setLastName}
-                mode="outlined"
-                style={styles.input}
-              />
-              <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                <TextInput
-                  label="Date of Birth"
-                  value={birth}
-                  mode="outlined"
-                  style={styles.input}
-                  editable={false}
-                  right={<TextInput.Icon name="calendar" />}
-                />
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={birth ? new Date(birth) : new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={handleDateChange}
-                />
-              )}
-              <TextInput
-                label="Contact Number"
-                value={contact}
-                onChangeText={setContact}
-                mode="outlined"
-                style={styles.input}
-                keyboardType="phone-pad"
-              />
-              <TextInput
-                label="Diagnosis"
-                value={diagnosis}
-                onChangeText={setDiagnosis}
-                mode="outlined"
-                style={styles.input}
-                multiline
-              />
-              <TextInput
-                label="Accommodation"
-                value={roomType}
-                mode="outlined"
-                style={styles.input}
-                editable={false}
-              />
-            </Card.Content>
-          </Card>
+          <PersonalInformationCard
+            name={name}
+            setName={setName}
+            lastName={lastName}
+            setLastName={setLastName}
+            birth={birth}
+            setBirth={setBirth}
+            contact={contact}
+            setContact={setContact}
+            diagnosis={diagnosis}
+            setDiagnosis={setDiagnosis}
+            roomType={roomType}
+            showDatePicker={showDatePicker}
+            setShowDatePicker={setShowDatePicker}
+            handleDateChange={handleDateChange}
+            styles={styles}
+          />
 
-          {/* Inventory Section */}
-          
-          <Card style={styles.sectionContainer}>
-           
-            <Card.Content>
-              {/* Supplies Used */}
-              <Subheading style={styles.subheading}>Supplies Used</Subheading>
-              <Searchbar
-                placeholder="Search Supplies"
-                value={suppliesSearchTerm}
-                onChangeText={setSuppliesSearchTerm}
-                style={styles.searchbar}
-              />
-              {renderUsedItems(suppliesUsed, suppliesSearchTerm)}
-              <Button
-              buttonColor="#740938"
-                rippleColor="#FF000020"
-                mode="contained"
-                icon="broom"
-                onPress={() => handleScan('supplies')}
-                style={styles.scanButton}
-              >
-                Scan Item for Supplies
-              </Button>
-              </Card.Content>
-          </Card>
+          {/* Supplies Used Section */}
+          <SuppliesUsedCard
+            suppliesUsed={suppliesUsed}
+            suppliesSearchTerm={suppliesSearchTerm}
+            setSuppliesSearchTerm={setSuppliesSearchTerm}
+            renderUsedItems={renderUsedItems}
+            handleScan={handleScan}
+            styles={styles}
+          />
 
-
-              {/* Medicines Used */}
-          <Card style={styles.sectionContainer}>
-            <Card.Content>
-              <Subheading style={styles.subheading}>Medicines Used</Subheading>
-              <Searchbar
-                placeholder="Search Medicines"
-                value={medSearchTerm}
-                onChangeText={setMedSearchTerm}
-                style={styles.searchbar}
-              />
-              {renderUsedItems(medUse, medSearchTerm)}
-              <Button
-               buttonColor="#740938"
-               rippleColor="#FF000020"
-                mode="contained"
-                icon="pill"
-                onPress={() => handleScan('medicines')}
-                style={styles.scanButton}
-              >
-                Scan Item for Medicines
-              </Button>
-            </Card.Content>
-          </Card>
+          {/* Medicines Used Section */}
+          <MedicinesUsedCard
+            medUse={medUse}
+            medSearchTerm={medSearchTerm}
+            setMedSearchTerm={setMedSearchTerm}
+            renderUsedItems={renderUsedItems}
+            handleScan={handleScan}
+            styles={styles}
+          />
 
           {/* Scanned Items Preview */}
           {scannedItems.length > 0 && (
-            <Card style={styles.sectionContainer}>
-              <Card.Title title="Scanned Items" />
-              <Card.Content>{renderScannedItems()}</Card.Content>
-            </Card>
+            <ScannedItemsCard
+              scannedItems={scannedItems}
+              renderScannedItems={renderScannedItems}
+              styles={styles}
+            />
           )}
 
           {/* Prescriptions Section */}
-          <Card style={styles.sectionContainer}>
-            <Card.Title title="Prescriptions" />
-            <Card.Content>
-              {renderPrescriptions()}
-              <Button
-              buttonColor='#2A3990'
-                mode="contained"
-                icon="plus"
-                onPress={() => setPrescriptionModalVisible(true)}
-                style={styles.addButton}
-              >
-                Add Prescription
-              </Button>
-            </Card.Content>
-          </Card>
+          <PrescriptionsCard
+            renderPrescriptions={renderPrescriptions}
+            setPrescriptionModalVisible={setPrescriptionModalVisible}
+            styles={styles}
+          />
 
           <Button
-          buttonColor='#0D8549'
+            buttonColor="#0D8549"
             mode="contained"
             onPress={handleSaveAll}
             style={styles.saveButton}
@@ -590,98 +530,41 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         {/* Modals */}
         <Portal>
           {/* Prescription Modal */}
-          <PaperModal
-            visible={prescriptionModalVisible}
-            onDismiss={() => setPrescriptionModalVisible(false)}
-          >
-            <Card style={styles.modalContent}>
-              <Card.Title title="Add Prescription" />
-              <Card.Content>
-                <TextInput
-                  label="Prescription Name"
-                  value={prescriptionName}
-                  onChangeText={setPrescriptionName}
-                  mode="outlined"
-                  style={styles.input}
-                />
-                <TextInput
-                  label="Dosage"
-                  value={dosage}
-                  onChangeText={setDosage}
-                  mode="outlined"
-                  style={styles.input}
-                />
-                <TextInput
-                  label="Instruction"
-                  value={instruction}
-                  onChangeText={setInstruction}
-                  mode="outlined"
-                  style={styles.input}
-                  multiline
-                />
-              </Card.Content>
-              <Card.Actions style={styles.modalActions}>
-                <Button onPress={() => setPrescriptionModalVisible(false)}>Cancel</Button>
-                <Button onPress={handleAddPrescription}>Add</Button>
-              </Card.Actions>
-            </Card>
-          </PaperModal>
+          <PrescriptionModal
+            prescriptionModalVisible={prescriptionModalVisible}
+            setPrescriptionModalVisible={setPrescriptionModalVisible}
+            prescriptionName={prescriptionName}
+            setPrescriptionName={setPrescriptionName}
+            dosage={dosage}
+            setDosage={setDosage}
+            instruction={instruction}
+            setInstruction={setInstruction}
+            handleAddPrescription={handleAddPrescription}
+            styles={styles}
+          />
 
           {/* Quantity Input Modal */}
-          <PaperModal
-            visible={quantityModalVisible}
-            onDismiss={() => setQuantityModalVisible(false)}
-          >
-            <Card style={styles.modalContent}>
-              <Card.Title title={`Enter Quantity for ${currentScannedItem?.itemName}`} />
-              <Card.Content>
-                <TextInput
-                  label="Available Quantity"
-                  value={String(currentScannedItem?.quantity || 0)}
-                  mode="outlined"
-                  style={styles.input}
-                  editable={false}
-                />
-                <TextInput
-                  label="Quantity to Use"
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  mode="outlined"
-                  style={styles.input}
-                  keyboardType="numeric"
-                />
-              </Card.Content>
-              <Card.Actions style={styles.modalActions}>
-                <Button onPress={() => setQuantityModalVisible(false)}>Cancel</Button>
-                <Button onPress={handleQuantityConfirm}>Confirm</Button>
-              </Card.Actions>
-            </Card>
-          </PaperModal>
+          <QuantityModal
+            quantityModalVisible={quantityModalVisible}
+            setQuantityModalVisible={setQuantityModalVisible}
+            itemDisplayName={itemDisplayName}
+            currentScannedItem={currentScannedItem}
+            quantity={quantity}
+            setQuantity={setQuantity}
+            handleQuantityConfirm={handleQuantityConfirm}
+            styles={styles}
+          />
         </Portal>
 
         {/* Barcode Scanner Modal */}
-        <Modal
-          visible={modalVisible}
-          transparent={false}
-          animationType="slide"
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View style={styles.scannerContainer}>
-            {scanning && (
-              <BarCodeScanner
-                onBarCodeScanned={handleBarCodeScanned}
-                style={StyleSheet.absoluteFillObject}
-              />
-            )}
-            <Button
-              mode="contained"
-              onPress={() => setModalVisible(false)}
-              style={styles.closeScannerButton}
-            >
-              Close Scanner
-            </Button>
-          </View>
-        </Modal>
+        <BarcodeScannerModal
+          modalVisible={modalVisible}
+          setModalVisible={setModalVisible}
+          scanning={scanning}
+          setScanning={setScanning}
+          handleBarCodeScanned={handleBarCodeScanned}
+          styles={styles}
+        />
 
         {/* Snackbar for Notifications */}
         <Snackbar
@@ -719,7 +602,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   subheading: {
-    color:'#000000',
+    color: '#000000',
     fontWeight: 'bold',
     marginTop: 16,
     marginBottom: 8,
@@ -738,7 +621,7 @@ const styles = StyleSheet.create({
     margin: 16,
   },
   modalContent: {
-    color:'#000000',
+    color: '#000000',
     margin: 16,
   },
   modalActions: {

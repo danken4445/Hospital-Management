@@ -23,6 +23,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
       "supportsTablet": true
     },
     "android": {

@@ -51,7 +51,7 @@ const StockTransferScreen = () => {
 
     // Fetch available supplies from the CSR department
     const fetchSupplies = async () => {
-      const suppliesRef = ref(db, 'departments/CSR/localSupplies');
+      const suppliesRef = ref(db, 'supplies');
       const snapshot = await get(suppliesRef);
       if (snapshot.exists()) {
         const supplyList = Object.entries(snapshot.val()).map(([key, value]) => ({
@@ -89,17 +89,14 @@ const StockTransferScreen = () => {
     
   
     // Find the supply item from the CSR supplies
-// Find the supply item from the CSR supplies (Case-insensitive and trimmed comparison)
-const supplyItem = supplies.find(
-  (item) => 
-    item.itemName.trim().toLowerCase() === itemName.trim().toLowerCase() &&
-    item.brand.trim().toLowerCase() === itemBrand.trim().toLowerCase()
-);
-
-if (!supplyItem) {
-  Alert.alert('Error', 'Supply item not found.');
-  return;
-}
+    const supplyItem = supplies.find(
+      (item) => item.itemName === itemName && item.brand === itemBrand
+    );
+  
+    if (!supplyItem) {
+      Alert.alert('Error', 'Supply item not found.');
+      return;
+    }
   
     if (supplyItem.quantity < transferQuantity) {
       Alert.alert('Error', 'Insufficient stock in CSR.');
@@ -109,7 +106,7 @@ if (!supplyItem) {
     try {
       // Deduct from CSR stock
       const updatedCSRQuantity = supplyItem.quantity - transferQuantity;
-      const supplyItemRef = ref(db, `departments/CSR/localSupplies/${supplyItem.id}`);
+      const supplyItemRef = ref(db, `supplies/${supplyItem.id}`);
       await update(supplyItemRef, { quantity: updatedCSRQuantity });
   
       // Update or create the item in the selected department's localSupplies
@@ -142,7 +139,7 @@ if (!supplyItem) {
       }
   
       // Log the transfer in InventoryHistoryTransfer under CSR
-      const transferHistoryRefCSR = ref(db, 'supplyHistoryTransfer');
+      const transferHistoryRefCSR = ref(db, 'departments/CSR/InventoryHistoryTransfer');
       const newTransferKeyCSR = push(transferHistoryRefCSR).key;
       const transferDataCSR = {
         sender: `${userInfo.firstName} ${userInfo.lastName}`,
@@ -152,9 +149,20 @@ if (!supplyItem) {
         itemBrand,
         timestamp: formatDateToLocal(new Date()), // Use the formatted timestamp here
       };
-      await update(ref(db, `supplyHistoryTransfer/${newTransferKeyCSR}`), transferDataCSR);
+      await update(ref(db, `departments/CSR/InventoryHistoryTransfer/${newTransferKeyCSR}`), transferDataCSR);
   
-
+      // Log the transfer in inventoryHistory under recipient department
+      const transferHistoryRefDept = ref(db, `departments/${selectedDepartment}/InventoryHistoryTransfer`);
+      const newTransferKeyDept = push(transferHistoryRefDept).key;
+      const transferDataDept = {
+        sender: `${userInfo.firstName} ${userInfo.lastName}`,
+        recipientDepartment: selectedDepartment,
+        quantity: transferQuantity,
+        itemName,
+        itemBrand,
+        timestamp: formatDateToLocal(new Date()), // Use the formatted timestamp here
+      };
+      await update(ref(db, `InventoryHistoryTransfer/${newTransferKeyDept}`), transferDataDept);
   
       Alert.alert('Success', 'Stock transferred successfully');
       setQuantity('');
@@ -168,7 +176,7 @@ if (!supplyItem) {
     
         return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Stock Transfers</Text>
+      <Text style={styles.header}>Stock Transfer</Text>
       
       {/* Department Picker */}
       <View style={styles.inputContainer}>

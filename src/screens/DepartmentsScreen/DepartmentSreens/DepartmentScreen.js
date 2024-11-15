@@ -6,12 +6,13 @@ import { auth, database } from '../../../../firebaseConfig'; // Adjust the impor
 import { ref, get } from 'firebase/database';
 import DepartmentUsageAnalyticsCard from '../../../components/DeptUsageAnalytics';
 
+const { height } = Dimensions.get('window');
+
 const Dashboard = ({ navigation }) => {
   const [userRole, setUserRole] = useState('');
-  const [departments, setDepartments] = useState([]); // State to hold department list
 
   useEffect(() => {
-    // Fetch the logged-in user's role
+    // Fetch the logged-in user's role from the database
     const fetchUserRole = async () => {
       const user = auth.currentUser;
       if (user) {
@@ -19,31 +20,25 @@ const Dashboard = ({ navigation }) => {
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
           const userData = snapshot.val();
-          setUserRole(userData.department); // Set user department role
+          setUserRole(userData.department); // Set the user role for dynamic rendering
         }
       }
     };
 
-    // Fetch all departments from Firebase
-    const fetchDepartments = async () => {
-      const departmentsRef = ref(database, 'departments');
-      const snapshot = await get(departmentsRef);
-      if (snapshot.exists()) {
-        const departmentData = snapshot.val();
-        const departmentList = Object.keys(departmentData);
-        setDepartments(departmentList); // Store departments in state
-      }
-    };
-
     fetchUserRole();
-    fetchDepartments();
   }, []);
 
-  // Exclude these departments from the dynamic list
-  const excludedDepartments = ['Admin', 'CSR', 'Pharmacy'];
-
-  // Filter departments to exclude certain roles
-  const filteredDepartments = departments.filter(dept => !excludedDepartments.includes(dept));
+  const handleFeaturePress = (screenName, department, params = {}) => {
+    Toast.show({
+      type: 'success',
+      position: 'bottom',
+      text1: `Navigating to  ${screenName}`,
+      visibilityTime: 3000,
+      autoHide: true,
+      bottomOffset: 40,
+    });
+    navigation.navigate(screenName, params);
+  };
 
   // Render department-specific cards
   const renderDepartmentDashboard = (department) => {
@@ -51,25 +46,26 @@ const Dashboard = ({ navigation }) => {
       <View style={styles.featureCardContainer}>
         <Text style={styles.titleText}>{`${department} Dashboard`}</Text>
         <View style={styles.grid}>
+          
           <FeatureCard
             title="Patient Scanner"
             icon={require('../../../../assets/patientScanner.png')}
-            onPress={() => navigation.navigate('DeptPatientScanner', { department })}
+            onPress={() => handleFeaturePress('DeptPatientScanner', { department })}
           />
           <FeatureCard
-            title="Transfer History"
-            icon={require('../../../../assets/stockTransfer.png')}
-            onPress={() => navigation.navigate('DeptTransferHistory')}
-          />
-          <FeatureCard
+                title="Transfer History"
+                icon={require('../../../../assets/stockTransfer.png')}
+                onPress={() => navigation.navigate('DeptTransferHistory')}
+              />
+              <FeatureCard
             title="Local Inventory"
             icon={require('../../../../assets/inventory.png')}
-            onPress={() => navigation.navigate('DeptLocalInventory', { department })}
+            onPress={() => handleFeaturePress('DeptLocalInventory', { department })}
           />
           <FeatureCard
             title="Usage History"
             icon={require('../../../../assets/inventoryHistory.png')}
-            onPress={() => navigation.navigate('DeptUsageHistory', { department })}
+            onPress={() => handleFeaturePress('DeptUsageHistory', { department })}
           />
         </View>
       </View>
@@ -82,18 +78,59 @@ const Dashboard = ({ navigation }) => {
         <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
         <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
           <View style={styles.cardContainer}>
-            <DepartmentUsageAnalyticsCard onChartPress={(chartType) => navigation.navigate('DeptAnalyticsScreen', { chartType })} />
+            <DepartmentUsageAnalyticsCard onChartPress={(chartType) => handleFeaturePress('DeptAnalyticsScreen', { chartType })} />
           </View>
 
-          {/* Render department dashboard for dynamic roles */}
-          {filteredDepartments.includes(userRole) && renderDepartmentDashboard(userRole)}
+          {/* Conditional rendering based on user role */}
+          {userRole === 'admin' && (
+            <View style={styles.featureCardContainer}>
+              <Text style={styles.titleText}>ADMIN DASHBOARD</Text>
+              <View style={styles.grid}>
+                <FeatureCard
+                  title="Inventory"
+                  icon={require('../../../../assets/inventory.png')}
+                  onPress={() => handleFeaturePress('InventoryScreen')}
+                />
+                <FeatureCard
+                  title="Create an Account"
+                  icon={require('../../../../assets/inventoryOverall.png')}
+                  onPress={() => handleFeaturePress('CreateAccountScreen')}
+                />
+                <FeatureCard
+                  title="Patient Scanner"
+                  icon={require('../../../../assets/patientScanner.png')}
+                  onPress={() => handleFeaturePress('DeptPatientScanner')}
+                />
+                <FeatureCard
+                  title="Inventory Scanner"
+                  icon={require('../../../../assets/inventoryScanner.png')}
+                  onPress={() => handleFeaturePress('InventoryScanner')}
+                />
+                <FeatureCard
+                  title="Access Department"
+                  icon={require('../../../../assets/accessDept.png')}
+                  onPress={() => handleFeaturePress('AccessDepartment')}
+                />
+                <FeatureCard
+                  title="Inventory History"
+                  icon={require('../../../../assets/inventoryHistory.png')}
+                  onPress={() => handleFeaturePress('InventoryHistory')}
+                />
+              </View>
+            </View>
+          )}
+
+ 
+      
+
+          {/* Common dashboard for departments like ICU, Inpatient, ER, etc. */}
+          {['ICU', 'ER', 'Inpatient', 'Outpatient'].includes(userRole) && renderDepartmentDashboard(userRole)}
 
         </ScrollView>
       </SafeAreaView>
     </ImageBackground>
   );
 };
-
 
 const styles = StyleSheet.create({
   imageBackground: {
@@ -126,7 +163,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderTopLeftRadius: 64,
     borderTopRightRadius: 64,
-    marginTop: -34,
+    marginTop: -34,   
     paddingBottom: 40,
   },
   grid: {

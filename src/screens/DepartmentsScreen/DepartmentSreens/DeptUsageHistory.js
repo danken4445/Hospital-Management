@@ -62,9 +62,9 @@ const DeptUsageHistory = () => {
     } else {
       const filtered = usageHistory.filter((item) => {
         const itemName = item.itemName ? item.itemName.toLowerCase() : '';
-        const firstName = item.firstName ? item.firstName.toLowerCase() : '';
+        const patientName = item.patientFName ? item.patientFName.toLowerCase() : '';
 
-        return itemName.includes(query.toLowerCase()) || firstName.includes(query.toLowerCase());
+        return itemName.includes(query.toLowerCase()) || patientName.includes(query.toLowerCase());
       });
 
       setFilteredHistory(filtered);
@@ -79,7 +79,7 @@ const DeptUsageHistory = () => {
           <Title style={styles.cardTitle}>{item.itemName}</Title>
         </View>
         <Paragraph>
-          <Text style={styles.label}>Patient:</Text> {item.firstName} {item.lastName}
+          <Text style={styles.label}>Patient:</Text> {item.patientFName} {item.patientLName}
         </Paragraph>
         <Paragraph>
           <Text style={styles.label}>Quantity:</Text> {item.quantity}

@@ -41,7 +41,7 @@ const CSRdashboard = ({ navigation }) => {
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate('SupplyAnalyticsScreen', { chartType });
+    navigation.navigate('UsageAnalyticsScreen', { chartType });
   };
 
   const handleStockTransferPress = (chartType) => {
@@ -84,11 +84,11 @@ const CSRdashboard = ({ navigation }) => {
                 icon={require('../../../assets/inventoryHistory.png')}
                 onPress={handleInventoryHistoryPress}
               />
-              {/* <FeatureCard
+              <FeatureCard
                 title="Stocks Transfer"
                 icon={require('../../../assets/stockTransfer.png')}
                 onPress={handleStockTransferPress}
-              /> */}
+              />
             </View>
           </View>
         </ScrollView>

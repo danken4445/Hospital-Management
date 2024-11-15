@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { Card } from 'react-native-paper';
 import { BarChart, PieChart, LineChart } from 'react-native-chart-kit';
+import { Dimensions } from 'react-native';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import * as ScreenOrientation from 'expo-screen-orientation'; 
 import { useFocusEffect } from '@react-navigation/native'; 
 
 const screenWidth = Dimensions.get('window').width;
-const screenHeight = Dimensions.get('window').height;
 
 const MedicineAnalyticsScreen = () => {
   const [transferHistory, setTransferHistory] = useState([]);
@@ -34,64 +34,55 @@ const MedicineAnalyticsScreen = () => {
   );
 
   useEffect(() => {
-    const fetchTransferHistory = async () => {
-      try {
-        const db = getDatabase();
-        const historyRef = ref(db, 'medicineTransferHistory');
+    const fetchTransferHistory = () => {
+      const db = getDatabase();
+      const historyRef = ref(db, 'medicineTransferHistory');
 
-        onValue(historyRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.val();
-            const historyArray = Object.keys(data).map((key) => ({
-              id: key,
-              ...data[key],
-            }));
+      onValue(historyRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const historyArray = Object.keys(data).map((key) => ({
+            id: key,
+            ...data[key],
+          }));
 
-            // Aggregate the data by itemName
-            const aggregatedData = {};
-            historyArray.forEach((entry) => {
-              const itemName = entry.itemName || 'Unknown Item';
-              const quantity = parseInt(entry.quantity, 10) || 0;
+          // Aggregate the data by itemName
+          const aggregatedData = {};
+          historyArray.forEach((entry) => {
+            const itemName = entry.itemName || 'Unknown Item';
+            const quantity = parseInt(entry.quantity, 10) || 0;
 
-              if (aggregatedData[itemName]) {
-                aggregatedData[itemName].quantity += quantity;
-              } else {
-                aggregatedData[itemName] = {
-                  itemName,
-                  quantity,
-                };
-              }
-            });
+            if (aggregatedData[itemName]) {
+              aggregatedData[itemName].quantity += quantity;
+            } else {
+              aggregatedData[itemName] = {
+                itemName: entry.itemName,
+                quantity: quantity,
+              };
+            }
+          });
 
-            const aggregatedArray = Object.values(aggregatedData);
-            setTransferHistory(aggregatedArray);
-            setFilteredData(aggregatedArray);
-            setLoading(false);
+          const aggregatedArray = Object.values(aggregatedData);
+          setTransferHistory(aggregatedArray);
+          setFilteredData(aggregatedArray);
+          setLoading(false);
 
-            // Calculate total transfers and total quantity
-            let totalQty = 0;
-            let maxItem = { name: '', quantity: 0 };
+          // Calculate total transfers and total quantity
+          let totalQty = 0;
+          let maxItem = { name: '', quantity: 0 };
 
-            aggregatedArray.forEach((item) => {
-              totalQty += item.quantity;
-              if (item.quantity > maxItem.quantity) {
-                maxItem = { name: item.itemName, quantity: item.quantity };
-              }
-            });
+          aggregatedArray.forEach((item) => {
+            totalQty += item.quantity;
+            if (item.quantity > maxItem.quantity) {
+              maxItem = { name: item.itemName, quantity: item.quantity };
+            }
+          });
 
-            setTotalTransfers(aggregatedArray.length);
-            setTotalQuantity(totalQty);
-            setMostTransferredItem(maxItem);
-          } else {
-            throw new Error("No data available");
-          }
-        }, (error) => {
-          console.error("Error fetching data:", error);
-        });
-      } catch (error) {
-        console.error("Error fetching transfer history:", error);
-        setLoading(false);
-      }
+          setTotalTransfers(aggregatedArray.length);
+          setTotalQuantity(totalQty);
+          setMostTransferredItem(maxItem);
+        }
+      });
     };
 
     fetchTransferHistory();
@@ -103,10 +94,8 @@ const MedicineAnalyticsScreen = () => {
       setFilteredData(transferHistory);
     } else {
       const filtered = transferHistory.filter(
-        (item) => {
-          const itemName = item.itemName ? item.itemName.toLowerCase() : ''; // Prevents error if itemName is undefined
-          return itemName.includes(query.toLowerCase());
-        }
+        (item) =>
+          item.itemName.toLowerCase().includes(query.toLowerCase())
       );
       setFilteredData(filtered);
     }
@@ -159,12 +148,6 @@ const MedicineAnalyticsScreen = () => {
   const renderCharts = () => {
     const itemNames = filteredData.map((item) => item.itemName);
     const quantities = filteredData.map((item) => item.quantity);
-    
-    // Use real timestamps for the LineChart
-    const timestamps = filteredData.map((item) => {
-      const date = new Date(item.timestamp); // Handle timestamp properly
-      return date.toLocaleDateString(); // Format the date to be readable
-    });
 
     return (
       <>
@@ -178,7 +161,7 @@ const MedicineAnalyticsScreen = () => {
               },
             ],
           }}
-          width={screenWidth - 140} // Adjusted for landscape
+          width={screenWidth - 40}
           height={220}
           chartConfig={chartConfig}
           verticalLabelRotation={30}
@@ -194,7 +177,7 @@ const MedicineAnalyticsScreen = () => {
             legendFontColor: '#7F7F7F',
             legendFontSize: 14,
           }))}
-          width={screenWidth - 150} // Adjusted for landscape
+          width={screenWidth - 40}
           height={220}
           chartConfig={chartConfig}
           accessor="quantity"
@@ -205,14 +188,14 @@ const MedicineAnalyticsScreen = () => {
         <Text style={styles.chartTitle}>Transfer Trends Over Time</Text>
         <LineChart
           data={{
-            labels: timestamps, // Use real timestamps instead of static date
+            labels: filteredData.map((item) =>  new Date().toISOString()),
             datasets: [
               {
                 data: quantities,
               },
             ],
           }}
-          width={screenWidth - 140} // Adjusted for landscape
+          width={screenWidth - 40}
           height={220}
           chartConfig={chartConfig}
           fromZero
@@ -275,18 +258,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
-    flexWrap: 'wrap',
   },
   summaryCard: {
     flex: 1,
-    marginHorizontal: 10,
+    marginHorizontal: 5,
     backgroundColor: '#fff',
     borderRadius: 12,
     elevation: 3,
-    minWidth: screenWidth / 3.5, // Adjusted for landscape
   },
   cardContent: {
-    padding: 15,
+    padding: 10,
   },
   summaryTitle: {
     fontSize: 16,
@@ -303,7 +284,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     color: '#6200ea',
-    textAlign: 'center',
   },
   loading: {
     flex: 1,

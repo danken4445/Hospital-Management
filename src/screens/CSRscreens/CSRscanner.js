@@ -67,9 +67,10 @@ const CSRInventoryScanner = () => {
     setItemModalVisible(true);
   };
 
+  // Navigate to StockTransferScreen with selected item details
   const handleTransferStock = () => {
     setItemModalVisible(false); // Close item details modal
-    navigation.navigate('StockTransferScreen', { itemDetails: selectedItem }); // Pass item details to StockTransferScreen
+    navigation.navigate('StockTransfer', { itemDetails: selectedItem }); // Pass item details to StockTransferScreen
   };
 
   // Handle bar code scan results

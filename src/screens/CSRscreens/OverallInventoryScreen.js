@@ -66,13 +66,7 @@ const OverallInventory = () => {
           setOverallSupplies(supplyArray);
           setFilteredSupplies(supplyArray);
           setLoading(false);
-        } else {
-          console.error('No departments data found.');
-          setLoading(false);
         }
-      }, (error) => {
-        console.error('Error fetching data:', error);
-        setLoading(false);
       });
     };
 
@@ -86,7 +80,7 @@ const OverallInventory = () => {
       setFilteredSupplies(overallSupplies);
     } else {
       const filteredData = overallSupplies.filter((item) =>
-        item.itemName ? item.itemName.toLowerCase().includes(query.toLowerCase()) : false
+        item.itemName.toLowerCase().includes(query.toLowerCase())
       );
       setFilteredSupplies(filteredData);
     }
@@ -119,7 +113,7 @@ const OverallInventory = () => {
                 <View style={styles.cardContent}>
                   <Text style={styles.itemName}>{item.itemName}</Text>
                   <Text style={styles.itemDetails}>Total: {item.totalQuantity} units</Text>
-                  <Text style={styles.brandDetails}>Brand: {item.brandName || 'N/A'}</Text>
+                  <Text style={styles.brandDetails}>Brand: {item.brandName}</Text>
                 </View>
               </Card>
             </TouchableOpacity>
