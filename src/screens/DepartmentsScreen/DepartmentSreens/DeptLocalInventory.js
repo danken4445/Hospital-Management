@@ -27,7 +27,7 @@ const LocalInventoryScanner = () => {
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
           const userData = snapshot.val();
-          setUserDepartment(userData.role); // Set user department (e.g., ER, ICU)
+          setUserDepartment(userData.department); // Set user department (e.g., ER, ICU)
         }
       }
     };

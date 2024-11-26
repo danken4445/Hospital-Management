@@ -124,7 +124,7 @@ const Dashboard = ({ navigation }) => {
       
 
           {/* Common dashboard for departments like ICU, Inpatient, ER, etc. */}
-          {['ICU', 'ER', 'Inpatient', 'Outpatient'].includes(userRole) && renderDepartmentDashboard(userRole)}
+          {['ICU', 'ER', 'COVID UNIT', 'Outpatient'].includes(userRole) && renderDepartmentDashboard(userRole)}
 
         </ScrollView>
       </SafeAreaView>

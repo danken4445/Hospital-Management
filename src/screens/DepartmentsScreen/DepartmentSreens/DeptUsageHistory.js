@@ -26,7 +26,7 @@ const DeptUsageHistory = () => {
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
           const userData = snapshot.val();
-          setUserDepartment(userData.role); // Assuming 'role' contains the department name
+          setUserDepartment(userData.department); // Assuming 'role' contains the department name
         }
       }
     };
