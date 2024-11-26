@@ -4,8 +4,8 @@ import { Card, TextInput } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const PersonalInformationCard = ({
-  name,
-  setName,
+  firstName,
+  setFirstName,
   lastName,
   setLastName,
   birth,
@@ -25,8 +25,8 @@ const PersonalInformationCard = ({
     <Card.Content>
       <TextInput
         label="First Name"
-        value={name}
-        onChangeText={setName}
+        value={firstName}
+        onChangeText={setFirstName}
         mode="outlined"
         style={styles.input}
       />

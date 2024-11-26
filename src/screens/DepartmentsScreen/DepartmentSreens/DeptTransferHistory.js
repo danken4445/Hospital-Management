@@ -14,6 +14,7 @@ const TransferHistory = () => {
 
   useEffect(() => {
     const db = getDatabase();
+
     const fetchUserDepartment = async () => {
       const user = auth.currentUser;
       if (user) {
@@ -29,22 +30,39 @@ const TransferHistory = () => {
     const fetchTransferHistory = async () => {
       await fetchUserDepartment(); // Ensure user's department is fetched first
       if (userDepartment) {
-        const historyRef = ref(db, `departments/${userDepartment}/inventoryHistoryTransfer`);
-        onValue(historyRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const historyData = snapshot.val();
-            const historyArray = Object.keys(historyData).map((key) => ({
+        const medicineRef = ref(db, 'medicineTransferHistory');
+        const supplyRef = ref(db, 'supplyHistoryTransfer');
+
+        let combinedHistory = [];
+
+        onValue(medicineRef, (medicineSnapshot) => {
+          if (medicineSnapshot.exists()) {
+            const medicines = Object.keys(medicineSnapshot.val()).map((key) => ({
               id: key,
-              ...historyData[key],
+              type: 'medicine', // Identify as a medicine transfer
+              ...medicineSnapshot.val()[key],
             }));
-            setTransferHistory(historyArray);
-            setFilteredHistory(historyArray);
-            setLoading(false);
-          } else {
-            setTransferHistory([]);
-            setFilteredHistory([]);
-            setLoading(false);
+            combinedHistory = [...combinedHistory, ...medicines];
           }
+
+          onValue(supplyRef, (supplySnapshot) => {
+            if (supplySnapshot.exists()) {
+              const supplies = Object.keys(supplySnapshot.val()).map((key) => ({
+                id: key,
+                type: 'supply', // Identify as a supply transfer
+                ...supplySnapshot.val()[key],
+              }));
+              combinedHistory = [...combinedHistory, ...supplies];
+            }
+
+            // Filter by department
+            const departmentFiltered = combinedHistory.filter(
+              (item) => item.recipientDepartment === userDepartment
+            );
+            setTransferHistory(departmentFiltered);
+            setFilteredHistory(departmentFiltered);
+            setLoading(false);
+          });
         });
       }
     };
@@ -59,11 +77,15 @@ const TransferHistory = () => {
       setFilteredHistory(transferHistory);
     } else {
       const filtered = transferHistory.filter((item) => {
+        const genericName = item.genericName ? item.genericName.toLowerCase() : '';
         const itemName = item.itemName ? item.itemName.toLowerCase() : '';
         const sender = item.sender ? item.sender.toLowerCase() : '';
-        const recipientDepartment = item.recipientDepartment ? item.recipientDepartment.toLowerCase() : '';
+        const recipientDepartment = item.recipientDepartment
+          ? item.recipientDepartment.toLowerCase()
+          : '';
 
         return (
+          genericName.includes(query.toLowerCase()) ||
           itemName.includes(query.toLowerCase()) ||
           sender.includes(query.toLowerCase()) ||
           recipientDepartment.includes(query.toLowerCase())
@@ -79,11 +101,13 @@ const TransferHistory = () => {
       <Card.Content>
         <View style={styles.cardHeader}>
           <FontAwesome5 name="truck" size={24} color="#00796b" />
-          <Title style={styles.cardTitle}>{item.genericName}</Title>
+          <Title style={styles.cardTitle}>{item.genericName || item.itemName}</Title>
         </View>
-        <Paragraph>
-          <Text style={styles.label}>Item Brand:</Text> {item.itemBrand}
-        </Paragraph>
+        {item.itemBrand && (
+          <Paragraph>
+            <Text style={styles.label}>Item Brand:</Text> {item.itemBrand}
+          </Paragraph>
+        )}
         <Paragraph>
           <Text style={styles.label}>Quantity:</Text> {item.quantity}
         </Paragraph>
@@ -94,7 +118,10 @@ const TransferHistory = () => {
           <Text style={styles.label}>Recipient Department:</Text> {item.recipientDepartment}
         </Paragraph>
         <Paragraph>
-          <Text style={styles.label}>Timestamp:</Text> {new Date(item.timestamp).toLocaleString()}
+          <Text style={styles.label}>Timestamp:</Text> {(item.timestamp)}
+        </Paragraph>
+        <Paragraph>
+          <Text style={styles.label}>Type:</Text> {item.type}
         </Paragraph>
       </Card.Content>
     </Card>

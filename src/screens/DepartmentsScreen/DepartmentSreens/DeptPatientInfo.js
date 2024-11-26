@@ -34,14 +34,20 @@ import BarcodeScannerModal from '../DeptComponents/BarcodeScannerModal';
 const DeptPatientInfoScreen = ({ route, navigation }) => {
   const { patientData } = route.params;
 
+  
+  
   // **State Variables**
-  const [name, setName] = useState(patientData.firstName);
+  const [firstName, setFirstName] = useState(patientData.firstName);
   const [lastName, setLastName] = useState(patientData.lastName);
   const [birth, setBirth] = useState(patientData.birth);
+  const [age, setAge] = useState(patientData.age)
+  const [dateTime, setDateTime] = useState (patientData.dateTime)
   const [contact, setContact] = useState(patientData.contact);
   const [diagnosis, setDiagnosis] = useState(patientData.diagnosis);
   const [roomType, setRoomType] = useState(patientData.roomType);
   const [status, setStatus] = useState(patientData.status);
+  const [qrData, setQrData] = useState (patientData.qrData)
+  const [gender, setGender] = useState (patientData.gender)
   const [suppliesUsed, setSuppliesUsed] = useState(
     Array.isArray(patientData.suppliesUsed) ? patientData.suppliesUsed : []
   );
@@ -277,29 +283,37 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
   const handleSaveAll = async () => {
     const db = getDatabase();
+  
+    if (!patientData.qrData) {
+      Alert.alert('Error', 'Patient QR data is missing.');
+      return;
+    }
+  
     const patientRef = ref(db, `patient/${patientData.qrData}`);
-
-    if (!name |!lastName|| !birth || !contact || !diagnosis || !roomType || !status) {
+  
+    if (!firstName || !lastName || !birth || !contact || !diagnosis || !roomType || !status| !gender) {
       Alert.alert('Error', 'All fields must be filled out before saving.');
       return;
     }
+    console.log("patientData.qrData:", patientData.qrData);
 
+  
     try {
       let updatedSuppliesUsed = [...suppliesUsed];
       let updatedMedUse = [...medUse];
-
+  
       for (let scannedItem of scannedItems) {
         const quantityToUse = scannedItem.quantity;
         const itemType = scannedItem.type;
         let itemRef;
         let itemDetails = {};
-
+  
         if (itemType === 'supplies') {
           itemRef = ref(db, `departments/${userDepartment}/localSupplies/${scannedItem.id}`);
         } else if (itemType === 'medicines') {
           itemRef = ref(db, `departments/${userDepartment}/localMeds/${scannedItem.id}`);
         }
-
+  
         const snapshot = await get(itemRef);
         if (snapshot.exists()) {
           itemDetails = snapshot.val();
@@ -307,14 +321,14 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
           Alert.alert('Error', 'Item details not found for ' + scannedItem.name);
           continue;
         }
-
+  
         if (itemDetails.quantity >= quantityToUse) {
           const updatedQuantity = itemDetails.quantity - quantityToUse;
           await update(itemRef, { quantity: updatedQuantity });
-
+  
           const timestamp = new Date().toISOString();
           const retailPrice = itemDetails.retailPrice || 0;
-
+  
           const usageEntry = {
             id: scannedItem.id,
             name: scannedItem.name,
@@ -324,52 +338,50 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
             shortDesc: scannedItem.shortDesc || '',
             standardDesc: scannedItem.standardDesc || '',
           };
-
+  
           if (itemType === 'supplies') {
             updatedSuppliesUsed.push(usageEntry);
           } else if (itemType === 'medicines') {
             updatedMedUse.push(usageEntry);
           }
-
+  
           await logInventoryHistory(scannedItem.name, quantityToUse, itemType);
         } else {
           Alert.alert('Error', 'Insufficient quantity in inventory for ' + scannedItem.name);
         }
       }
-
+  
       const updatedData = {
-        name,
+        firstName,
+        lastName,
         birth,
+        gender,
+        qrData,
+        age,
         contact,
         diagnosis,
         roomType,
+        dateTime,
         status,
         suppliesUsed: updatedSuppliesUsed,
         medUse: updatedMedUse,
         prescriptions,
       };
-
-      // Use 'set' instead of 'update' to ensure arrays are saved correctly
+  
       await set(patientRef, updatedData);
-
-      // Update local state
+  
       setSuppliesUsed(updatedSuppliesUsed);
       setMedUse(updatedMedUse);
-
       setSnackbarMessage('Data saved successfully!');
       setSnackbarVisible(true);
-
       setScannedItems([]);
       setQuantity('');
     } catch (error) {
       console.error('Save Error:', error);
-      Alert.alert(
-        'Error',
-        'An error occurred while saving data. Please check the console for more details.'
-      );
+      Alert.alert('Error', 'An error occurred while saving data.');
     }
   };
-
+  
   const handleRemoveScannedItem = (itemId) => {
     setScannedItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
   };
@@ -463,8 +475,8 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         <ScrollView contentContainerStyle={styles.container}>
           {/* Personal Information Section */}
           <PersonalInformationCard
-            name={name}
-            setName={setName}
+            firstName={firstName}
+            setFirstName={setFirstName}
             lastName={lastName}
             setLastName={setLastName}
             birth={birth}
@@ -648,3 +660,6 @@ const styles = StyleSheet.create({
 });
 
 export default DeptPatientInfoScreen;
+
+
+
