@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera } from 'expo-camera';
 import { getDatabase, ref, get } from 'firebase/database';
 
 const PatientScanner = ({ navigation }) => {
@@ -10,7 +10,7 @@ const PatientScanner = ({ navigation }) => {
 
   useEffect(() => {
     (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
   }, []);
@@ -19,6 +19,7 @@ const PatientScanner = ({ navigation }) => {
     console.log('Scanned ID:', data);
     setScanned(true);
     setLoading(true);
+
     try {
       const db = getDatabase();
       const patientRef = ref(db, `patient/${data}`);
@@ -28,7 +29,6 @@ const PatientScanner = ({ navigation }) => {
       if (snapshot.exists()) {
         console.log('Patient data found:', snapshot.val());
         setLoading(false);
-        // Navigate to PatientInfoScreen with patient data
         navigation.navigate('PatientInfo', { patientData: snapshot.val() });
       } else {
         console.log('No patient data found for ID:', data);
@@ -52,9 +52,12 @@ const PatientScanner = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <BarCodeScanner
+      <Camera
         onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-        style={styles.barcodeScanner}
+        style={styles.camera}
+        barCodeScannerSettings={{
+          barCodeTypes: ['qr', 'ean13', 'code128'], // Adjust types as needed
+        }}
       />
       {loading && (
         <View style={styles.loadingContainer}>
@@ -79,8 +82,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  barcodeScanner: {
-    ...StyleSheet.absoluteFillObject,
+  camera: {
+    flex: 1,
+    width: '100%',
   },
   loadingContainer: {
     ...StyleSheet.absoluteFillObject,

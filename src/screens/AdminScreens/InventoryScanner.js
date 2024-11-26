@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, Modal, TouchableOp
 import { Card, Title, Paragraph, Searchbar, Button } from 'react-native-paper';
 import { getDatabase, ref, onValue, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera } from 'expo-camera';
 
 const InventoryScanner = () => {
   const [inventory, setInventory] = useState([]);
@@ -14,13 +14,13 @@ const InventoryScanner = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [customAlertVisible, setCustomAlertVisible] = useState(false);
   const [alertContent, setAlertContent] = useState({});
+  const [hasPermission, setHasPermission] = useState(null);
 
   useEffect(() => {
-    const db = getDatabase();
-    const suppliesRef = ref(db, 'supplies');
-    const medicinesRef = ref(db, 'medicine');
-
     const fetchInventory = () => {
+      const db = getDatabase();
+      const suppliesRef = ref(db, 'supplies');
+      const medicinesRef = ref(db, 'medicine');
       let allInventory = [];
 
       // Fetch Supplies
@@ -54,6 +54,12 @@ const InventoryScanner = () => {
     };
 
     fetchInventory();
+
+    // Request camera permissions
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
 
     return () => {
       // Clean up listeners when component unmounts
@@ -157,6 +163,14 @@ const InventoryScanner = () => {
     </Card>
   );
 
+  if (hasPermission === null) {
+    return <View style={styles.container}><Text>Requesting camera permission...</Text></View>;
+  }
+
+  if (hasPermission === false) {
+    return <View style={styles.container}><Text>No access to camera</Text></View>;
+  }
+
   return (
     <View style={styles.container}>
       {/* Search Bar */}
@@ -194,14 +208,16 @@ const InventoryScanner = () => {
       {/* QR Code Scanner Modal */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View style={styles.modalContainer}>
-          {scanning ? (
-            <BarCodeScanner
-              onBarCodeScanned={handleBarCodeScanned}
+          {scanning && (
+            <Camera
               style={styles.barcodeScanner}
+              onBarCodeScanned={handleBarCodeScanned}
+              barCodeScannerSettings={{
+                barCodeTypes: ['qr'], // Adjust if needed
+              }}
             />
-          ) : (
-            <Button onPress={() => setModalVisible(false)}>Close</Button>
           )}
+          <Button onPress={() => setModalVisible(false)}>Close</Button>
         </View>
       </Modal>
 
@@ -258,22 +274,20 @@ const styles = StyleSheet.create({
   },
   label: {
     fontWeight: 'bold',
-    color: '#333',
   },
   scanButton: {
-    marginVertical: 20,
+    marginTop: 20,
     backgroundColor: '#7a0026',
-    borderRadius: 8,
   },
   modalContainer: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   barcodeScanner: {
-    width: '100%',
-    height: '60%',
+    width: '90%',
+    height: '70%',
   },
   alertModalContainer: {
     flex: 1,
@@ -283,34 +297,29 @@ const styles = StyleSheet.create({
   },
   alertBox: {
     width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 10,
     padding: 20,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 5,
-    elevation: 5,
+    alignItems: 'center',
   },
   alertTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#7a0026',
     marginBottom: 10,
-    textAlign: 'center',
+    color: '#7a0026',
   },
   alertMessage: {
     fontSize: 16,
-    color: '#333',
-    marginBottom: 20,
     textAlign: 'center',
+    marginBottom: 20,
   },
   alertButton: {
     backgroundColor: '#7a0026',
-    borderRadius: 8,
+    borderRadius: 5,
+    paddingHorizontal: 20,
   },
   alertButtonText: {
-    color: '#fff',
+    color: 'white',
     fontWeight: 'bold',
   },
 });

@@ -16,10 +16,10 @@ import UsageAnalyticsScreen from '../screens/AdminScreens/UsageAnalyticsScreen';
 
 //CSR SCREENS
 import CSRdashboardScreen from '../screens/CSRscreens/CSRdashboardScreen';
-import OverallInventory from './../screens/CSRscreens/OverallInventoryScreen';
-import CSRinventoryHistory from './../screens/CSRscreens/CSRinventoryHistory';
-import LocalInventory from './../screens/CSRscreens/LocalInventory';
-import StockTransfer from './../screens/CSRscreens/StockTransfer';
+import OverallInventory from '../screens/CSRscreens/OverallInventoryScreen'; 
+import CSRinventoryHistory from '../screens/CSRscreens/CSRinventoryHistory';
+import LocalInventory from '../screens/CSRscreens/LocalInventory';
+import StockTransfer from '../screens/CSRscreens/StockTransfer';
 import SupplyDetails from '../screens/CSRscreens/SupplyDetails';
 import TransferHistory from '../screens/CSRscreens/TransferHistory';
 import CSRInventoryScanner from '../screens/CSRscreens/CSRscanner';

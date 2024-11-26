@@ -79,7 +79,7 @@ const TransferHistory = () => {
       <Card.Content>
         <View style={styles.cardHeader}>
           <FontAwesome5 name="truck" size={24} color="#00796b" />
-          <Title style={styles.cardTitle}>{item.itemName}</Title>
+          <Title style={styles.cardTitle}>{item.genericName}</Title>
         </View>
         <Paragraph>
           <Text style={styles.label}>Item Brand:</Text> {item.itemBrand}

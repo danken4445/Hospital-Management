@@ -30,9 +30,12 @@
       "supportsTablet": true
     },
     "android": {
+      "newArchEnabled": true,
+
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO"
+
       ],
 
       "adaptiveIcon": {

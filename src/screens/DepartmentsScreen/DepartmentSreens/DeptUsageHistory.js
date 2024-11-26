@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TextInput, TouchableOpacity } from 'react-native';
 import { Card, Title, Paragraph } from 'react-native-paper';
 import { getDatabase, ref, onValue, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { auth } from '../../../../firebaseConfig'; // Adjust this path as needed
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
 const DeptUsageHistory = () => {
   const [usageHistory, setUsageHistory] = useState([]);
@@ -11,6 +12,8 @@ const DeptUsageHistory = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [userDepartment, setUserDepartment] = useState(null);
+  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
 
   useEffect(() => {
     const db = getDatabase();
@@ -62,13 +65,25 @@ const DeptUsageHistory = () => {
     } else {
       const filtered = usageHistory.filter((item) => {
         const itemName = item.itemName ? item.itemName.toLowerCase() : '';
-        const patientName = item.patientFName ? item.patientFName.toLowerCase() : '';
+        const patientName = item.firstName ? item.lastName.toLowerCase() : '';
 
         return itemName.includes(query.toLowerCase()) || patientName.includes(query.toLowerCase());
       });
 
       setFilteredHistory(filtered);
     }
+  };
+
+  const handleDateFilter = (date) => {
+    setSelectedDate(date);
+    setDatePickerVisible(false);
+
+    const filtered = usageHistory.filter((item) => {
+      const itemDate = new Date(item.timestamp).toDateString(); // Format the item's timestamp
+      return itemDate === date.toDateString(); // Match the selected date
+    });
+
+    setFilteredHistory(filtered);
   };
 
   const renderHistoryItem = ({ item }) => (
@@ -79,7 +94,7 @@ const DeptUsageHistory = () => {
           <Title style={styles.cardTitle}>{item.itemName}</Title>
         </View>
         <Paragraph>
-          <Text style={styles.label}>Patient:</Text> {item.patientFName} {item.patientLName}
+          <Text style={styles.label}>Patient:</Text> {item.firstName} {item.lastName}
         </Paragraph>
         <Paragraph>
           <Text style={styles.label}>Quantity:</Text> {item.quantity}
@@ -98,12 +113,24 @@ const DeptUsageHistory = () => {
     <View style={styles.container}>
       <Text style={styles.header}>Department: {userDepartment}</Text>
 
-      {/* Search Bar */}
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Search history by item or patient..."
-        value={searchQuery}
-        onChangeText={handleSearch}
+      {/* Search Bar and Date Picker */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Search history by item or patient..."
+          value={searchQuery}
+          onChangeText={handleSearch}
+        />
+        <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
+          <FontAwesome5 name="calendar-alt" size={24} color="#00796b" style={styles.calendarIcon} />
+        </TouchableOpacity>
+      </View>
+
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="date"
+        onConfirm={handleDateFilter}
+        onCancel={() => setDatePickerVisible(false)}
       />
 
       {/* Usage History List */}
@@ -133,14 +160,22 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     color: '#00796b',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   searchBar: {
+    flex: 1,
     height: 40,
     borderColor: '#ccc',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
-    marginBottom: 15,
     backgroundColor: '#fff',
+  },
+  calendarIcon: {
+    marginLeft: 10,
   },
   listContainer: {
     paddingBottom: 10,

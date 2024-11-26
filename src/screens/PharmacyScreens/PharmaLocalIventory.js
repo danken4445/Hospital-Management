@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, Modal, TouchableOp
 import { Card, Title, Paragraph, Searchbar, Button } from 'react-native-paper';
 import { getDatabase, ref, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera } from 'expo-camera'; // Replacing BarCodeScanner with Camera
 import { useNavigation } from '@react-navigation/native';
 
 const PharmaLocalInventory = () => {

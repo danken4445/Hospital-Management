@@ -279,7 +279,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
     const db = getDatabase();
     const patientRef = ref(db, `patient/${patientData.qrData}`);
 
-    if (!name || !birth || !contact || !diagnosis || !roomType || !status) {
+    if (!name |!lastName|| !birth || !contact || !diagnosis || !roomType || !status) {
       Alert.alert('Error', 'All fields must be filled out before saving.');
       return;
     }
@@ -384,7 +384,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
           ...item,
           totalQuantity: item.quantity,
           latestTimestamp: item.timestamp,
-          shortDesc: item.shortDesc || '',
+          brand: item.brand || '',
           standardDesc: item.standardDesc || '',
         };
       } else {
@@ -406,7 +406,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         <Card.Title title={item.name} />
         <Card.Content>
           <Paragraph>Quantity Used: {item.totalQuantity}</Paragraph>
-          <Paragraph>Short Description: {item.shortDesc || 'No short description available'}</Paragraph>
+          <Paragraph>Brand: {item.brand || 'No short description available'}</Paragraph>
           <Paragraph>Standard Description: {item.standardDesc || 'No standard description available'}</Paragraph>
           <Paragraph>
             Last Used: {new Date(item.latestTimestamp).toLocaleString() || 'N/A'}

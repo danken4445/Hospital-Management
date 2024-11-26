@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, Modal } from 'reac
 import { Card, Title, Paragraph, Searchbar, Button } from 'react-native-paper';
 import { getDatabase, ref, onValue, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { auth } from '../../../../firebaseConfig'; // Adjust this path as needed
 
 const LocalInventoryScanner = () => {
@@ -120,7 +120,7 @@ const LocalInventoryScanner = () => {
         const medicinesData = medicinesSnapshot.val();
         setAlertContent({
           title: 'Item Found',
-          message: `Medicine Name: ${medicinesData.itemName}\nQuantity: ${medicinesData.quantity}\nStatus: ${medicinesData.status}`,
+          message: `Medicine Name: ${medicinesData.genericName}\nQuantity: ${medicinesData.quantity}\nStatus: ${medicinesData.status}`,
         });
         setCustomAlertVisible(true);
         return;
@@ -142,33 +142,37 @@ const LocalInventoryScanner = () => {
     }
   };
 
-  const renderItem = ({ item }) => (
-    <Card style={styles.card}>
-      <Card.Content>
-        <View style={styles.cardHeader}>
-          <FontAwesome5
-            name={item.type === 'Supplies' ? 'box' : 'pills'}
-            size={24}
-            color={item.type === 'Supplies' ? '#4CAF50' : '#FF5722'}
-          />
-          <Title style={styles.cardTitle}>{item.itemName}</Title>
-        </View>
-        <Paragraph>
-          <Text style={styles.label}>Brand:</Text> {item.brand}
-        </Paragraph>
-        <Paragraph>
-          <Text style={styles.label}>Current Quantity:</Text> {item.quantity}
-        </Paragraph>
-        <Paragraph>
-          <Text style={styles.label}>Status:</Text> {item.status}
-        </Paragraph>
-        <Paragraph>
-          <Text style={styles.label}>Type:</Text> {item.type}
-        </Paragraph>
-      </Card.Content>
-    </Card>
-  );
-
+  const renderItem = ({ item }) => {
+    const isSupply = item.type === 'Supplies';
+  
+    return (
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.cardHeader}>
+            <FontAwesome5
+              name={isSupply ? 'box' : 'pills'}
+              size={24}
+              color={isSupply ? '#4CAF50' : '#FF5722'}
+            />
+            <Title style={styles.cardTitle}>{isSupply ? item.itemName : item.genericName}</Title>
+          </View>
+          <Paragraph>
+            <Text style={styles.label}>{isSupply ? 'Brand:' : 'Description:'}</Text> {isSupply ? item.brand : item.shortDesc}
+          </Paragraph>
+          <Paragraph>
+            <Text style={styles.label}>Current Quantity:</Text> {item.quantity}
+          </Paragraph>
+          <Paragraph>
+            <Text style={styles.label}>Status:</Text> {item.status}
+          </Paragraph>
+          <Paragraph>
+            <Text style={styles.label}>Type:</Text> {item.type}
+          </Paragraph>
+        </Card.Content>
+      </Card>
+    );
+  };
+  
   return (
     <View style={styles.container}>
       {/* Department Title */}
@@ -210,7 +214,7 @@ const LocalInventoryScanner = () => {
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View style={styles.modalContainer}>
           {scanning ? (
-            <BarCodeScanner
+            <CameraView
               onBarCodeScanned={handleBarCodeScanned}
               style={styles.barcodeScanner}
             />
