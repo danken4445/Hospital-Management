@@ -15,7 +15,7 @@ const CreateAccountScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const adminUID = 'VEsT3WTIvxZG5g1zlDcnlRAftVy1'; // Hardcoded admin UID
+  const adminUID = 'WL8AcLiKHDdvrpk5jtLkaKcEwH52'; // Hardcoded admin UID
 
   // Check if the current user is an admin
   useEffect(() => {

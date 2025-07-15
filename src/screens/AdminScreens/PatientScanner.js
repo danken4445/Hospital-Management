@@ -1,74 +1,68 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
-import { Camera } from 'expo-camera';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getDatabase, ref, get } from 'firebase/database';
 
 const PatientScanner = ({ navigation }) => {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-  }, []);
-
-  const handleBarCodeScanned = async ({ type, data }) => {
-    console.log('Scanned ID:', data);
+  const handleBarCodeScanned = async ({ data }) => {
     setScanned(true);
     setLoading(true);
 
     try {
       const db = getDatabase();
       const patientRef = ref(db, `patient/${data}`);
-      console.log('Fetching patient data from:', `patient/${data}`);
       const snapshot = await get(patientRef);
 
       if (snapshot.exists()) {
-        console.log('Patient data found:', snapshot.val());
-        setLoading(false);
         navigation.navigate('PatientInfo', { patientData: snapshot.val() });
       } else {
-        console.log('No patient data found for ID:', data);
-        Alert.alert('No Data', `No patient data found for the scanned ID: ${data}.`);
-        setLoading(false);
+        Alert.alert('No Data', `No patient data found for ID: ${data}.`);
       }
     } catch (error) {
-      console.error('Error fetching patient data:', error);
-      Alert.alert('Error', 'An error occurred while fetching patient data.');
+      Alert.alert('Error', 'Failed to fetch patient data.');
+    } finally {
       setLoading(false);
     }
   };
 
-  if (hasPermission === null) {
-    return <View style={styles.centered}><Text>Requesting camera permission...</Text></View>;
+  if (!permission) {
+    return <View />; // Permissions loading
   }
 
-  if (hasPermission === false) {
-    return <View style={styles.centered}><Text>No access to camera</Text></View>;
+  if (!permission.granted) {
+    return (
+      <View style={styles.permissionContainer}>
+        <Text style={styles.permissionMessage}>We need your permission to access the camera.</Text>
+        <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+          <Text style={styles.buttonText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
-      <Camera
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+      <CameraView
         style={styles.camera}
-        barCodeScannerSettings={{
-          barCodeTypes: ['qr', 'ean13', 'code128'], // Adjust types as needed
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr', 'ean13', 'code128'],
         }}
       />
+
       {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0000ff" />
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.loadingText}>Loading patient data...</Text>
         </View>
       )}
+
       {scanned && !loading && (
-        <TouchableOpacity
-          style={styles.scanAgainButton}
-          onPress={() => setScanned(false)}
-        >
+        <TouchableOpacity style={styles.scanAgainButton} onPress={() => setScanned(false)}>
           <Text style={styles.scanAgainText}>Scan Again</Text>
         </TouchableOpacity>
       )}
@@ -77,37 +71,56 @@ const PatientScanner = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: '#000' },
+
+  permissionContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
-  camera: {
-    flex: 1,
-    width: '100%',
+  permissionMessage: {
+    fontSize: 16,
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  loadingContainer: {
+  permissionButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  camera: { flex: 1 },
+
+  loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)', // Semi-transparent background while loading
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  loadingText: {
+    marginTop: 10,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
   },
+
   scanAgainButton: {
     position: 'absolute',
     bottom: 50,
-    backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 10,
+    alignSelf: 'center',
+    backgroundColor: '#28a745',
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 12,
   },
   scanAgainText: {
     color: '#fff',
-    fontSize: 18,
     fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

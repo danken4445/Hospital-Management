@@ -1,55 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, ScrollView, Modal, TouchableOpacity, StatusBar, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import { Camera } from 'expo-camera';
-import { getDatabase, ref, get, update, push } from 'firebase/database';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Card, FAB, IconButton, Paragraph, Title } from 'react-native-paper';
+import React, { useState } from 'react';
+import {
+  View, Text, TouchableOpacity, ScrollView, Modal, Alert, StatusBar, StyleSheet
+} from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { getDatabase, ref, update } from 'firebase/database';
+import { Card, Paragraph, Title } from 'react-native-paper';
 
-const PatientInfoScreen = ({ route, navigation }) => {
+const PatientInfoScreen = ({ route }) => {
   const { patientData } = route.params;
-  const [name, setName] = useState(patientData.name);
+  const [permission, requestPermission] = useCameraPermissions();
+
   const [birth, setBirth] = useState(patientData.birth);
-  const [contact, setContact] = useState(patientData.contact);
   const [diagnosis, setDiagnosis] = useState(patientData.diagnosis);
-  const [roomType, setRoomType] = useState(patientData.roomType);
-  const [status, setStatus] = useState(patientData.status);
-  const [suppliesUsed, setSuppliesUsed] = useState(patientData.suppliesUsed || {});
-  const [medUse, setMedUse] = useState(patientData.medUse || {});
+  const [roomType] = useState(patientData.roomType);
+  const [status] = useState(patientData.status);
+  const [suppliesUsed] = useState(patientData.suppliesUsed || {});
+  const [medUse] = useState(patientData.medUse || {});
   const [modalVisible, setModalVisible] = useState(false);
-  const [quantityModalVisible, setQuantityModalVisible] = useState(false);
-  const [scanningFor, setScanningFor] = useState(null);
-  const [cameraPermission, setCameraPermission] = useState(null);
-  const [cameraRef, setCameraRef] = useState(null);
-  const [scannedItems, setScannedItems] = useState([]);
-  const [quantity, setQuantity] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setCameraPermission(status === 'granted');
-    })();
-
-    setName(patientData.name);
-    setBirth(patientData.birth);
-    setContact(patientData.contact);
-    setDiagnosis(patientData.diagnosis);
-    setRoomType(patientData.roomType);
-    setStatus(patientData.status);
-    setSuppliesUsed(patientData.suppliesUsed || {});
-    setMedUse(patientData.medUse || {});
-  }, [patientData]);
 
   const handleSave = async () => {
     const db = getDatabase();
     const patientRef = ref(db, `patient/${patientData.qrData}`);
 
     const updatedData = {
-      name,
+      firstName: patientData.firstName,
+      lastName: patientData.lastName,
       birth,
-      contact,
+      contact: patientData.contact,
       diagnosis,
       roomType,
       status,
@@ -60,126 +37,110 @@ const PatientInfoScreen = ({ route, navigation }) => {
     try {
       await update(patientRef, updatedData);
       Alert.alert('Success', 'Patient data updated successfully!');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'An error occurred while updating patient data.');
     }
   };
 
-  const handleScan = (type) => {
-    setScanningFor(type);
-    setModalVisible(true);
-  };
-
-  const captureBarcode = async () => {
-    if (cameraRef) {
-      const photo = await cameraRef.takePictureAsync({ base64: true });
-      // Implement barcode decoding logic or external library support to parse the barcode from the image.
-      Alert.alert('Scanned Barcode', 'You need to implement decoding logic here.');
-    }
-  };
-
-  const handleQuantityConfirm = () => {
-    const quantityToUse = parseInt(quantity, 10);
-    if (isNaN(quantityToUse) || quantityToUse <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
-      return;
-    }
-
-    setQuantityModalVisible(false);
-  };
-
-  const renderUsedItems = (usedItems) => {
-    return Object.entries(usedItems).map(([key, item]) => (
+  const renderUsedItems = (usedItems) => (
+    Object.entries(usedItems).map(([key, item]) => (
       <Card key={key} style={styles.usedItemCard}>
         <Card.Content>
-          <Title style={styles.itemName}>{item.name}</Title>
+          <Title>{item.name}</Title>
           <Paragraph>Quantity: {item.quantity}</Paragraph>
-          <Paragraph style={styles.timestampText}>Last Used: {item.lastUsed || 'N/A'}</Paragraph>
+          <Paragraph>Last Used: {item.lastUsed || 'N/A'}</Paragraph>
         </Card.Content>
       </Card>
-    ));
-  };
+    ))
+  );
 
   return (
     <View style={styles.fullScreenContainer}>
-      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
+      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
+
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.headerText}>Patient Information</Text>
+        <Text style={styles.headerText}>Patient Details</Text>
 
-        {/* Personal Information Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionHeader}>Personal Information</Text>
-          <TextInput
-            style={styles.input}
-            label="Name"
-            placeholder="Enter patient name"
-            value={name}
-            onChangeText={setName}
-          />
-          <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker(true)}>
-            <Text style={styles.datePickerText}>{birth || 'Select Date of Birth'}</Text>
+        <View style={styles.displayField}>
+          <Text style={styles.label}>Name</Text>
+          <Text style={styles.valueText}>{patientData.firstName} {patientData.lastName}</Text>
+        </View>
+
+        <View style={styles.displayField}>
+          <Text style={styles.label}>Contact Number</Text>
+          <Text style={styles.valueText}>{patientData.contact}</Text>
+        </View>
+
+        <View style={styles.displayField}>
+          <Text style={styles.label}>Birth Date</Text>
+          <Text style={styles.valueText}>{birth || 'Not Set'}</Text>
+        </View>
+
+        <View style={styles.inputField}>
+          <Text style={styles.label}>Diagnosis</Text>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => Alert.prompt('Update Diagnosis', '', setDiagnosis, 'plain-text', diagnosis)}
+          >
+            <Text style={styles.editButtonText}>{diagnosis || 'Enter Diagnosis'}</Text>
           </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={birth ? new Date(birth) : new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) {
-                  setBirth(date.toISOString().split('T')[0]);
-                }
-              }}
-            />
-          )}
-          <TextInput
-            style={styles.input}
-            label="Contact"
-            placeholder="Enter contact number"
-            value={contact}
-            onChangeText={setContact}
-          />
-          <TextInput
-            style={styles.input}
-            label="Diagnosis"
-            placeholder="Enter diagnosis"
-            value={diagnosis}
-            onChangeText={setDiagnosis}
-          />
-          <View style={styles.textAreaContainer}>
-            <Text style={styles.roomTypeText}>
-              Accommodation: {roomType || 'No Room Type Specified'}
-            </Text>
-          </View>
         </View>
 
-        {/* Inventory Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionHeader}>Inventory</Text>
-          <Text style={styles.label}>Supplies Used</Text>
-          {renderUsedItems(suppliesUsed)}
-          <Button title="Scan Supplies" color="#4CAF50" onPress={() => handleScan('supplies')} />
-          <Text style={styles.label}>Medicines Used</Text>
-          {renderUsedItems(medUse)}
-          <Button title="Scan Medicines" color="#FF5722" onPress={() => handleScan('medicines')} />
+        <View style={styles.displayField}>
+          <Text style={styles.label}>Room Type</Text>
+          <Text style={styles.valueText}>{roomType || 'Not Specified'}</Text>
         </View>
 
-        <Button title="Save" color="#4CAF50" onPress={handleSave} />
+        <Text style={styles.sectionTitle}>Supplies Used</Text>
+        {renderUsedItems(suppliesUsed)}
+        <TouchableOpacity
+          style={styles.scanButton}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.scanButtonText}>Scan Supplies</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>Medicines Used</Text>
+        {renderUsedItems(medUse)}
+        <TouchableOpacity
+          style={[styles.scanButton, { backgroundColor: '#FF5722' }]}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.scanButtonText}>Scan Medicines</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>Save Changes</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Camera Modal */}
-      <Modal visible={modalVisible} transparent={true} animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalContainer}>
-          {cameraPermission ? (
-            <Camera
-              style={styles.camera}
-              ref={(ref) => setCameraRef(ref)}
-              onCameraReady={captureBarcode}
-            />
-          ) : (
-            <Text>No access to camera</Text>
-          )}
-          <Button title="Close" onPress={() => setModalVisible(false)} />
+          {!permission
+            ? null
+            : !permission.granted
+              ? (
+                <View style={styles.modalContainer}>
+                  <Text style={{ color: 'white', marginBottom: 10 }}>
+                    We need your permission to access the camera.
+                  </Text>
+                  <TouchableOpacity style={styles.closeButton} onPress={requestPermission}>
+                    <Text style={styles.closeButtonText}>Grant Permission</Text>
+                  </TouchableOpacity>
+                </View>
+              )
+              : (
+                <>
+                  <CameraView style={styles.camera} />
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.closeButtonText}>Close Scanner</Text>
+                  </TouchableOpacity>
+                </>
+              )}
         </View>
       </Modal>
     </View>
@@ -187,44 +148,66 @@ const PatientInfoScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  fullScreenContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-    paddingTop: StatusBar.currentHeight || 0,
+  fullScreenContainer: { flex: 1, backgroundColor: '#fff' },
+  container: { padding: 20, backgroundColor: '#f9f9f9' },
+
+  headerText: { fontSize: 22, fontWeight: 'bold', color: '#333', marginBottom: 20 },
+
+  displayField: { marginBottom: 15 },
+  label: { color: '#777', fontSize: 14, marginBottom: 4 },
+  valueText: { fontSize: 16, color: '#333', fontWeight: '500' },
+
+  inputField: { marginBottom: 15 },
+  editButton: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ccc' },
+  editButtonText: { fontSize: 16, color: '#007bff' },
+
+  sectionTitle: {
+    fontSize: 18, fontWeight: 'bold', color: '#1C2B39',
+    marginTop: 20, marginBottom: 10,
   },
-  container: {
-    flexGrow: 1,
-    padding: 20,
-    backgroundColor: '#F5F5F5',
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  sectionContainer: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#fff',
+
+  scanButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
     borderRadius: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 5,
-    elevation: 2,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  scanButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+
+  saveButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 30,
+  },
+  saveButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+
+  usedItemCard: {
+    marginVertical: 5,
+    borderRadius: 10,
+    elevation: 3,
+    backgroundColor: '#fff',
+  },
+
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   camera: {
     width: '100%',
     height: '80%',
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  closeButton: {
+    backgroundColor: '#f00',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 20,
   },
+  closeButtonText: { color: '#fff', fontWeight: 'bold' },
 });
 
 export default PatientInfoScreen;

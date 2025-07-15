@@ -73,7 +73,7 @@ const Dashboard = ({ navigation }) => {
   };
 
   return (
-    <ImageBackground source={require('../../../../assets/background.png')} style={styles.imageBackground}>
+    <ImageBackground source={require('../../../../assets/background1.png')} style={styles.imageBackground}>
       <SafeAreaView style={styles.safeAreaView}>
         <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
         <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>

@@ -11,14 +11,14 @@
       ]
     ],
 
-    "name": "HospitalInventorySystem",
-    "slug": "HospitalInventorySystem",
+    "name": "OdysSys",
+    "slug": "OdysSys",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/hospitalmanagementsys.png",
+    "icon": "./assets/OdysSys.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/hospitalmanagementsys.png",
+      "image": "./assets/OdysSys.png",
       "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
@@ -39,7 +39,7 @@
       ],
 
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/OdysSys.png",
         "backgroundColor": "#ffffff"
       }
     },

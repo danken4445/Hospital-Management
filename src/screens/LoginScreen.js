@@ -9,6 +9,8 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
 
   const handleLogin = async () => {
     setLoading(true);
@@ -27,7 +29,7 @@ const LoginScreen = ({ navigation }) => {
         
         // Redirect users based on their role
         switch (userData.department) {
-          case 'admin':
+          case 'Admin':
             navigation.navigate('AdminDashboard'); // Admin Dashboard
             break;
           case 'CSR':
@@ -58,7 +60,7 @@ const LoginScreen = ({ navigation }) => {
   return (
     <PaperProvider>
       <View style={styles.container}>
-        <Image source={require('../../assets/hospitalmanagementsys.png')} style={styles.logo} />
+        <Image source={require('../../assets/oddysseyTransparent.png')} style={styles.logo} />
         <Text style={styles.title}>Staff Login</Text>
 
         <TextInput
@@ -72,14 +74,21 @@ const LoginScreen = ({ navigation }) => {
         />
 
         <TextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          mode="outlined"
-          style={styles.input}
-          theme={{ colors: { primary: themeColors.primary, text: themeColors.text } }}
-        />
+  label="Password"
+  value={password}
+  onChangeText={setPassword}
+  secureTextEntry={!passwordVisible}  // Toggle visibility
+  mode="outlined"
+  style={styles.input}
+  theme={{ colors: { primary: themeColors.primary, text: themeColors.text } }}
+  right={
+    <TextInput.Icon
+      icon={passwordVisible ? 'eye-off' : 'eye'}  // Icon switches
+      onPress={() => setPasswordVisible(!passwordVisible)}  // Toggle state
+    />
+  }
+/>
+
 
         {loading ? (
           <ActivityIndicator animating={true} size="large" color={themeColors.primary} />
@@ -101,8 +110,8 @@ const LoginScreen = ({ navigation }) => {
 };
 
 const themeColors = {
-  primary: '#7a0026',
-  accent: '#b3003a',
+  primary: '#1C2B39',
+  accent: '#D74610',
   text: '#fff',
   background: '#fff',
   buttonText: '#fff',
@@ -118,14 +127,15 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 300,
-    height: 150,
-    marginBottom: 10,
-    marginTop: 24,
+    height: 300,
+    marginBottom: 2,
+    marginTop: 4,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
+    marginTop: -34,
     marginBottom: 20,
     color: themeColors.primary,
   },

@@ -219,7 +219,7 @@ const chartConfig = {
 const styles = StyleSheet.create({
   card: {
     marginTop: 44,
-    backgroundColor: 'rgba(122, 0, 38, 1)',
+    backgroundColor: 'rgba(28, 43, 57, 1)',
     width: screenWidth - 30,
     marginHorizontal: 15,
     borderRadius: 16,

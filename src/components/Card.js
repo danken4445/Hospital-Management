@@ -21,7 +21,7 @@ const FeatureCard = ({ title, icon, onPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    margin: 4,
+    margin: 0,
     width: 150,
     height: 150,
   },
@@ -33,8 +33,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius:24,
-    borderColor: '#7a0026'
-  
+    borderColor: '#1C2B39',  
+    margin: 4,
   },
   content: {
     flex: 1,

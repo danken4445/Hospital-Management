@@ -56,7 +56,7 @@ const Dashboard = ({ navigation }) => {
   };
 
   return (
-    <ImageBackground source={require('./../../../assets/background.png')} style={styles.imageBackground}>
+    <ImageBackground source={require('./../../../assets/background1.png')} style={styles.imageBackground}>
       <SafeAreaView style={styles.safeAreaView}>
         <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
         <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
@@ -118,9 +118,10 @@ const styles = StyleSheet.create({
   cardContainer: {
     marginTop: -26,
     elevation: 0,
+  
   },
   featureCardContainer: {
-    backgroundColor: 'rgba(251, 251, 249,1)', // Add slight transparency to see the background image
+    backgroundColor: 'rgba(251, 251, 249,0.4)', // Add slight transparency to see the background image
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 5 },
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     marginTop: -21,
-    color: 'maroon'
+    color: '#1C2B39'
   }
 });
 
