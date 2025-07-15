@@ -33,3 +33,9 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Firebase Config
+../firebaseConfig.jsx
+src/firebaseConfig.jsx
+src/firebaseConfig.ts
+src/firebaseConfig.tsx
