@@ -15,10 +15,10 @@
     "slug": "OdysSys",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/OdysSys.png",
+    "icon": "/assets/OdysSys.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/OdysSys.png",
+      "image": "assets/OdysSys.png",
       "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },

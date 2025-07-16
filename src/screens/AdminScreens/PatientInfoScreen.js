@@ -1,213 +1,333 @@
-import React, { useState } from 'react';
-import {
-  View, Text, TouchableOpacity, ScrollView, Modal, Alert, StatusBar, StyleSheet
-} from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { getDatabase, ref, update } from 'firebase/database';
-import { Card, Paragraph, Title } from 'react-native-paper';
+import React, { useReducer, useCallback, useMemo } from 'react';
+import { View, StyleSheet, Alert, ScrollView, StatusBar } from 'react-native';
+import { Appbar, Button, Provider as PaperProvider, Snackbar, Portal, DefaultTheme } from 'react-native-paper';
+import { useCameraPermissions } from 'expo-camera';
+import { getDatabase, ref, set } from 'firebase/database';
 
-const PatientInfoScreen = ({ route }) => {
+import useInventory from '../../utils/hooks/useInventory';
+import { patientReducer, initialPatientState } from '../../utils/reducers/patientReducer';
+import ErrorBoundary from '../AdminScreens/components/ErrorBoundary';
+
+// Import components
+import PersonalInformationCard from '../DepartmentsScreen/DeptComponents/PersonalInformationCard';
+import SuppliesUsedCard from '../DepartmentsScreen/DeptComponents/SuppliesUsedCard';
+import MedicinesUsedCard from '../DepartmentsScreen/DeptComponents/MedicinesUsedCard';
+import ScannedItemsCard from '../DepartmentsScreen/DeptComponents/ScannedItemCard';
+import PrescriptionsCard from '../DepartmentsScreen/DeptComponents/PrescriptionCard';
+import PrescriptionModal from '../DepartmentsScreen/DeptComponents/PrescriptionModal';
+import QuantityModal from '../DepartmentsScreen/DeptComponents/QuantityModal';
+import BarcodeScannerModal from '../DepartmentsScreen/DeptComponents/BarcodeScannerModal';
+const PatientInfoScreen = ({ route, navigation }) => {
   const { patientData } = route.params;
+  const [state, dispatch] = useReducer(patientReducer, {
+    ...initialPatientState,
+    personalInfo: { ...patientData },
+    inventory: {
+      suppliesUsed: Array.isArray(patientData.suppliesUsed) ? patientData.suppliesUsed : [],
+      medUse: Array.isArray(patientData.medUse) ? patientData.medUse : [],
+      scannedItems: []
+    },
+    prescriptions: patientData.prescriptions || {}
+  });
+
+  const { loading, checkInventoryItem, updateInventoryQuantity, logUsageHistory } = useInventory();
   const [permission, requestPermission] = useCameraPermissions();
 
-  const [birth, setBirth] = useState(patientData.birth);
-  const [diagnosis, setDiagnosis] = useState(patientData.diagnosis);
-  const [roomType] = useState(patientData.roomType);
-  const [status] = useState(patientData.status);
-  const [suppliesUsed] = useState(patientData.suppliesUsed || {});
-  const [medUse] = useState(patientData.medUse || {});
-  const [modalVisible, setModalVisible] = useState(false);
+  // Memoized handlers
+  const handleScan = useCallback((type) => {
+    dispatch({ type: 'SET_UI_STATE', payload: { scanning: true, scanType: type } });
+  }, []);
 
-  const handleSave = async () => {
-    const db = getDatabase();
-    const patientRef = ref(db, `patient/${patientData.qrData}`);
-
-    const updatedData = {
-      firstName: patientData.firstName,
-      lastName: patientData.lastName,
-      birth,
-      contact: patientData.contact,
-      diagnosis,
-      roomType,
-      status,
-      suppliesUsed,
-      medUse,
-    };
+  const handleBarCodeScanned = useCallback(async ({ data }) => {
+    // Safety check for scanType
+    if (!state.ui || !state.ui.scanType) {
+      Alert.alert('Error', 'Scan type not specified.');
+      return;
+    }
 
     try {
-      await update(patientRef, updatedData);
-      Alert.alert('Success', 'Patient data updated successfully!');
-    } catch {
-      Alert.alert('Error', 'An error occurred while updating patient data.');
+      const item = await checkInventoryItem(data, state.ui.scanType);
+      if (item) {
+        dispatch({ 
+          type: 'SET_UI_STATE', 
+          payload: { 
+            currentScannedItem: { ...item, id: data },
+            quantityModalVisible: true,
+            scanning: false 
+          } 
+        });
+      } else {
+        Alert.alert('Error', 'Item not found in inventory.');
+        dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
+      }
+    } catch (error) {
+      console.error('Barcode scan error:', error);
+      Alert.alert('Error', 'Failed to process scanned item.');
+      dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
     }
-  };
+  }, [state.ui?.scanType, checkInventoryItem]);
 
-  const renderUsedItems = (usedItems) => (
-    Object.entries(usedItems).map(([key, item]) => (
-      <Card key={key} style={styles.usedItemCard}>
-        <Card.Content>
-          <Title>{item.name}</Title>
-          <Paragraph>Quantity: {item.quantity}</Paragraph>
-          <Paragraph>Last Used: {item.lastUsed || 'N/A'}</Paragraph>
-        </Card.Content>
-      </Card>
-    ))
-  );
+  const handleQuantityConfirm = useCallback(async (quantity) => {
+    const item = state.ui.currentScannedItem;
+    if (!item) return;
+
+    const success = await updateInventoryQuantity([{
+      id: item.id,
+      type: state.ui.scanType,
+      quantity: item.quantity - quantity
+    }]);
+
+    if (success) {
+      dispatch({
+        type: 'UPDATE_INVENTORY',
+        payload: {
+          scannedItems: [...state.inventory.scannedItems, { ...item, quantity }]
+        }
+      });
+      await logUsageHistory(patientData, item, quantity, state.ui.scanType);
+      dispatch({ 
+        type: 'SET_UI_STATE', 
+        payload: { 
+          currentScannedItem: null,
+          quantityModalVisible: false 
+        } 
+      });
+    }
+  }, [state.ui.currentScannedItem, state.ui.scanType, state.inventory.scannedItems]);
+
+  const handleSaveAll = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_UI_STATE', payload: { loading: true } });
+      const db = getDatabase();
+      await set(ref(db, `patient/${patientData.qrData}`), {
+        ...state.personalInfo,
+        suppliesUsed: state.inventory.suppliesUsed,
+        medUse: state.inventory.medUse,
+        prescriptions: state.prescriptions
+      });
+      dispatch({ 
+        type: 'SET_UI_STATE', 
+        payload: { 
+          snackbar: { visible: true, message: 'Saved successfully!' },
+          loading: false
+        } 
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save changes.');
+      dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+    }
+  }, [state, patientData.qrData]);
+
+  // Memoized values
+  const memoizedPrescriptions = useMemo(() => 
+    Object.entries(state.prescriptions).map(([key, item]) => ({
+      key,
+      ...item
+    })), [state.prescriptions]);
+
+  const memoizedScannedItems = useMemo(() => 
+    state.inventory.scannedItems, [state.inventory.scannedItems]);
 
   return (
-    <View style={styles.fullScreenContainer}>
-      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
+    <ErrorBoundary>
+     <PaperProvider theme={theme}>
+        <View style={styles.fullScreenContainer}>
+          <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
+          <Appbar.Header>
+            <Appbar.BackAction onPress={() => navigation.goBack()} />
+            <Appbar.Content title="Patient Information" />
+          </Appbar.Header>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.headerText}>Patient Details</Text>
+          <ScrollView contentContainerStyle={styles.container}>
+            <PersonalInformationCard
+              data={state.personalInfo}
+              onUpdate={(updates) => dispatch({ 
+                type: 'SET_PERSONAL_INFO', 
+                payload: updates 
+              })}
+              showDatePicker={state.ui.showDatePicker}
+              setShowDatePicker={(show) => dispatch({
+                type: 'SET_UI_STATE',
+                payload: { showDatePicker: show }
+              })}
+              handleDateChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  dispatch({ 
+                    type: 'SET_PERSONAL_INFO', 
+                    payload: { birth: selectedDate.toISOString().split('T')[0] } 
+                  });
+                }
+                dispatch({ type: 'SET_UI_STATE', payload: { showDatePicker: false } });
+              }}
+              styles={styles}
+            />
 
-        <View style={styles.displayField}>
-          <Text style={styles.label}>Name</Text>
-          <Text style={styles.valueText}>{patientData.firstName} {patientData.lastName}</Text>
-        </View>
+            <SuppliesUsedCard
+              data={state.inventory.suppliesUsed}
+              onScan={handleScan}
+              styles={styles}
+            />
 
-        <View style={styles.displayField}>
-          <Text style={styles.label}>Contact Number</Text>
-          <Text style={styles.valueText}>{patientData.contact}</Text>
-        </View>
+            <MedicinesUsedCard
+              data={state.inventory.medUse}
+              onScan={() => handleScan('medicines')}
+              styles={styles}
+            />
 
-        <View style={styles.displayField}>
-          <Text style={styles.label}>Birth Date</Text>
-          <Text style={styles.valueText}>{birth || 'Not Set'}</Text>
-        </View>
+            {memoizedScannedItems.length > 0 && (
+              <ScannedItemsCard
+                items={memoizedScannedItems}
+                onRemove={(id) => dispatch({
+                  type: 'UPDATE_INVENTORY',
+                  payload: {
+                    scannedItems: state.inventory.scannedItems.filter(item => item.id !== id)
+                  }
+                })}
+                styles={styles}
+              />
+            )}
 
-        <View style={styles.inputField}>
-          <Text style={styles.label}>Diagnosis</Text>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => Alert.prompt('Update Diagnosis', '', setDiagnosis, 'plain-text', diagnosis)}
+            <PrescriptionsCard
+              prescriptions={memoizedPrescriptions || []}  // Add fallback empty array
+              onAdd={() => dispatch({ 
+                type: 'SET_UI_STATE', 
+                payload: { prescriptionModalVisible: true } 
+              })}
+              onDelete={(key) => {
+                const { [key]: removed, ...rest } = state.prescriptions;
+                dispatch({
+                  type: 'ADD_PRESCRIPTION',
+                  payload: rest
+                });
+              }}
+              styles={styles}
+            />
+
+            <Button
+              mode="contained"
+              onPress={handleSaveAll}
+              style={styles.saveButton}
+              loading={loading || state.ui.loading}
+            >
+              Save Changes
+            </Button>
+          </ScrollView>
+
+          <Portal>
+            <PrescriptionModal
+              visible={state.ui.prescriptionModalVisible}
+              onDismiss={() => dispatch({ 
+                type: 'SET_UI_STATE', 
+                payload: { prescriptionModalVisible: false } 
+              })}
+              onAdd={(prescription) => dispatch({
+                type: 'ADD_PRESCRIPTION',
+                payload: { [Date.now()]: prescription }
+              })}
+            />
+
+            <QuantityModal
+              visible={state.ui.quantityModalVisible}
+              item={state.ui.currentScannedItem}
+              onConfirm={handleQuantityConfirm}
+              onDismiss={() => dispatch({ 
+                type: 'SET_UI_STATE', 
+                payload: { quantityModalVisible: false } 
+              })}
+            />
+
+            <BarcodeScannerModal
+              visible={state.ui.scanning}
+              onScan={handleBarCodeScanned}
+              onDismiss={() => dispatch({ 
+                type: 'SET_UI_STATE', 
+                payload: { scanning: false } 
+              })}
+            />
+          </Portal>
+
+          <Snackbar
+            visible={state.ui.snackbar.visible}
+            onDismiss={() => dispatch({
+              type: 'SET_UI_STATE',
+              payload: { snackbar: { visible: false, message: '' } }
+            })}
+            duration={3000}
           >
-            <Text style={styles.editButtonText}>{diagnosis || 'Enter Diagnosis'}</Text>
-          </TouchableOpacity>
+            {state.ui.snackbar.message}
+          </Snackbar>
         </View>
-
-        <View style={styles.displayField}>
-          <Text style={styles.label}>Room Type</Text>
-          <Text style={styles.valueText}>{roomType || 'Not Specified'}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Supplies Used</Text>
-        {renderUsedItems(suppliesUsed)}
-        <TouchableOpacity
-          style={styles.scanButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.scanButtonText}>Scan Supplies</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>Medicines Used</Text>
-        {renderUsedItems(medUse)}
-        <TouchableOpacity
-          style={[styles.scanButton, { backgroundColor: '#FF5722' }]}
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.scanButtonText}>Scan Medicines</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Save Changes</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Camera Modal */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          {!permission
-            ? null
-            : !permission.granted
-              ? (
-                <View style={styles.modalContainer}>
-                  <Text style={{ color: 'white', marginBottom: 10 }}>
-                    We need your permission to access the camera.
-                  </Text>
-                  <TouchableOpacity style={styles.closeButton} onPress={requestPermission}>
-                    <Text style={styles.closeButtonText}>Grant Permission</Text>
-                  </TouchableOpacity>
-                </View>
-              )
-              : (
-                <>
-                  <CameraView style={styles.camera} />
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => setModalVisible(false)}
-                  >
-                    <Text style={styles.closeButtonText}>Close Scanner</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-        </View>
-      </Modal>
-    </View>
+      </PaperProvider>
+    </ErrorBoundary>
   );
 };
 
+const theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: '#6200ee',
+    accent: '#03dac4',
+  },
+};
+
 const styles = StyleSheet.create({
-  fullScreenContainer: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 20, backgroundColor: '#f9f9f9' },
-
-  headerText: { fontSize: 22, fontWeight: 'bold', color: '#333', marginBottom: 20 },
-
-  displayField: { marginBottom: 15 },
-  label: { color: '#777', fontSize: 14, marginBottom: 4 },
-  valueText: { fontSize: 16, color: '#333', fontWeight: '500' },
-
-  inputField: { marginBottom: 15 },
-  editButton: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ccc' },
-  editButtonText: { fontSize: 16, color: '#007bff' },
-
-  sectionTitle: {
-    fontSize: 18, fontWeight: 'bold', color: '#1C2B39',
-    marginTop: 20, marginBottom: 10,
+  fullScreenContainer: {
+    flex: 1,
   },
-
+  container: {
+    padding: 16,
+  },
+  sectionContainer: {
+    marginBottom: 16,
+  },
+  input: {
+    marginBottom: 12,
+  },
+  subheading: {
+    color: '#000000',
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  searchbar: {
+    marginBottom: 12,
+  },
   scanButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
+    marginBottom: 16,
   },
-  scanButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-
+  addButton: {
+    marginTop: 16,
+  },
   saveButton: {
-    backgroundColor: '#007bff',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 30,
+    margin: 16,
   },
-  saveButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-
-  usedItemCard: {
-    marginVertical: 5,
-    borderRadius: 10,
-    elevation: 3,
+  modalContent: {
+    color: '#000000',
+    margin: 16,
+  },
+  modalActions: {
+    justifyContent: 'flex-end',
+  },
+  scannerContainer: {
+    flex: 1,
+  },
+  closeScannerButton: {
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
     backgroundColor: '#fff',
   },
-
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'black',
-    justifyContent: 'center',
-    alignItems: 'center',
+  prescriptionCard: {
+    marginBottom: 12,
   },
-  camera: {
-    width: '100%',
-    height: '80%',
+  usedItemCard: {
+    marginVertical: 6,
   },
-  closeButton: {
-    backgroundColor: '#f00',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 20,
+  scannedItemCard: {
+    marginVertical: 6,
   },
-  closeButtonText: { color: '#fff', fontWeight: 'bold' },
 });
 
 export default PatientInfoScreen;

@@ -52,10 +52,16 @@ const DeptPatientScanner = ({ navigation }) => {
           const patientData = snapshot.val();
           console.log('Patient data found:', patientData);
 
+          // Ensure QR data is included in patient data
+          const patientDataWithQR = {
+            ...patientData,
+            qrData: data // Add the scanned QR code as qrData
+          };
+
           // Check if the patient's roomType matches the user's department
           if (patientData.roomType === userDepartment) {
             setLoading(false);
-            navigation.navigate('DeptPatientInfoScreen', { patientData });
+            navigation.navigate('DeptPatientInfoScreen', { patientData: patientDataWithQR });
           } else {
             setLoading(false);
             Alert.alert(

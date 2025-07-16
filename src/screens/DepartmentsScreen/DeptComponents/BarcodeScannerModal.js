@@ -1,45 +1,52 @@
 import React from 'react';
-import { View, Modal, StyleSheet } from 'react-native';
+import { Modal, View, StyleSheet } from 'react-native';
+import { Button, Portal } from 'react-native-paper';
 import { CameraView } from 'expo-camera';
-import { Button } from 'react-native-paper';
 
-const BarcodeScannerModal = ({
-  modalVisible,
-  setModalVisible,
-  scanning,
-  setScanning,
-  handleBarCodeScanned,
-  styles,
-}) => (
-  <Modal
-    visible={modalVisible}
-    transparent={false}
-    animationType="slide"
-    onRequestClose={() => setModalVisible(false)}
-  >
-    <View style={styles.scannerContainer}>
-      {scanning && (
-        <CameraView
-          style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onBarcodeScanned={handleBarCodeScanned}
-          barCodeScannerSettings={{
-            barCodeTypes: ['qr', 'ean13', 'code128'],
-          }}
-        />
-      )}
-      <Button
-        mode="contained"
-        onPress={() => {
-          setScanning(false);
-          setModalVisible(false);
-        }}
-        style={styles.closeScannerButton}
+const BarcodeScannerModal = ({ visible, onDismiss, onScan }) => {
+  return (
+    <Portal>
+      <Modal
+        visible={visible}
+        onDismiss={onDismiss}
+        animationType="slide"
       >
-        Close Scanner
-      </Button>
-    </View>
-  </Modal>
-);
+        <View style={styles.scannerContainer}>
+          <CameraView
+            style={styles.scanner}
+            onBarcodeScanned={onScan}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr', 'ean13', 'code128'],
+            }}
+          />
+          <Button
+            mode="contained"
+            onPress={onDismiss}
+            style={styles.cancelButton}
+          >
+            Cancel
+          </Button>
+        </View>
+      </Modal>
+    </Portal>
+  );
+};
+
+const styles = StyleSheet.create({
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#000'
+  },
+  scanner: {
+    flex: 1
+  },
+  cancelButton: {
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 20
+  }
+});
 
 export default BarcodeScannerModal;
