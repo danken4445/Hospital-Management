@@ -10,6 +10,7 @@ const QuantityModal = ({ visible, item, onConfirm, onDismiss }) => {
     if (isNaN(parsedQuantity) || parsedQuantity <= 0 || parsedQuantity > item?.quantity) {
       return;
     }
+    // Just pass the quantity to add to scanned items, don't deduct from inventory yet
     onConfirm(parsedQuantity);
     setQuantity('');
   };
@@ -29,10 +30,13 @@ const QuantityModal = ({ visible, item, onConfirm, onDismiss }) => {
               <View style={modalStyles.itemInfo}>
                 <Title>{item.name}</Title>
                 <Paragraph>Available: {item.quantity}</Paragraph>
+                <Paragraph style={{ color: '#666', fontSize: 12, marginTop: 5 }}>
+                  Note: Inventory will be updated when you save changes
+                </Paragraph>
               </View>
             )}
             <TextInput
-              label="Quantity"
+              label="Quantity to use"
               value={quantity}
               onChangeText={setQuantity}
               keyboardType="numeric"
@@ -57,7 +61,7 @@ const QuantityModal = ({ visible, item, onConfirm, onDismiss }) => {
                 parseInt(quantity) > item?.quantity
               }
             >
-              Confirm
+              Add to List
             </Button>
           </Card.Actions>
         </Card>

@@ -1,27 +1,16 @@
-import React, { useReducer, useCallback, useMemo, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  StatusBar,
-} from 'react-native';
-import {
-  Appbar,
-  Button,
-  Provider as PaperProvider,
-  Snackbar,
-  Portal,
-  DefaultTheme,
-} from 'react-native-paper';
-import { useCameraPermissions } from 'expo-camera';
-import { getDatabase, ref, get, set, update } from 'firebase/database';
+import React, { useReducer, useCallback, useMemo, useEffect, useState } from 'react';
+import { View, StyleSheet, Alert, ScrollView, StatusBar, Text } from 'react-native';
+import { Button, Provider as PaperProvider, Snackbar, Portal, DefaultTheme, Banner } from 'react-native-paper';
+import { getDatabase, ref, set, onValue, off, goOffline, goOnline } from 'firebase/database';
 import { auth } from '../../../../firebaseConfig';
+import NetInfo from '@react-native-community/netinfo';
 
 import { useDeptInventory } from '../../../utils/hooks/useDeptInventory';
 import { deptPatientReducer, initialDeptPatientState } from '../../../utils/reducers/deptPatientReducer';
+import { validateInventoryUpdate, validateScannedItem } from '../../../utils/inventoryValidation';
+import ErrorBoundary from '../../AdminScreens/components/ErrorBoundary';
 
-// Import components
+// Components
 import PersonalInformationCard from '../DeptComponents/PersonalInformationCard';
 import SuppliesUsedCard from '../DeptComponents/SuppliesUsedCard';
 import MedicinesUsedCard from '../DeptComponents/MedicinesUsedCard';
@@ -30,535 +19,508 @@ import PrescriptionsCard from '../DeptComponents/PrescriptionCard';
 import PrescriptionModal from '../DeptComponents/PrescriptionModal';
 import QuantityModal from '../DeptComponents/QuantityModal';
 import BarcodeScannerModal from '../DeptComponents/BarcodeScannerModal';
-import ErrorBoundary from '../../AdminScreens/components/ErrorBoundary';
 
 const DeptPatientInfoScreen = ({ route, navigation }) => {
-  const { patientData } = route.params;
-  const { checkInventoryItem, updateInventoryQuantity, logUsageHistory } = useDeptInventory();
+  const { patientData } = route.params || {};
+  
+  // Add safety check for patientData
+  if (!patientData) {
+    Alert.alert('Error', 'Patient data not found');
+    navigation.goBack();
+    return null;
+  }
 
-  // Debug: Log the patient data to console
-  console.log('Patient Data received:', JSON.stringify(patientData, null, 2));
-  console.log('Patient Data keys:', Object.keys(patientData || {}));
-  console.log('Patient Data firstName:', patientData?.firstName);
-  console.log('Patient Data lastName:', patientData?.lastName);
-  console.log('Patient Data qrData:', patientData?.qrData);
-
-  // Initialize state with patient data
   const [state, dispatch] = useReducer(deptPatientReducer, {
     ...initialDeptPatientState,
-    personalInfo: {
-      firstName: patientData?.firstName || '',
-      lastName: patientData?.lastName || '',
-      birth: patientData?.birth || '',
-      age: patientData?.age || '',
-      dateTime: patientData?.dateTime || new Date().toISOString(),
-      contact: patientData?.contact || '',
-      diagnosis: patientData?.diagnosis || '',
-      roomType: patientData?.roomType || '',
-      status: patientData?.status || '',
-      qrData: patientData?.qrData || '',
-      gender: patientData?.gender || ''
-    },
+    personalInfo: { ...patientData },
     inventory: {
-      suppliesUsed: Array.isArray(patientData?.suppliesUsed) ? patientData.suppliesUsed : [],
-      medUse: Array.isArray(patientData?.medUse) ? patientData.medUse : [],
+      suppliesUsed: Array.isArray(patientData.suppliesUsed) ? patientData.suppliesUsed : [],
+      medUse: Array.isArray(patientData.medUse) ? patientData.medUse : [],
       scannedItems: []
     },
-    prescriptions: patientData?.prescriptions || {}
+    prescriptions: patientData.prescriptions || {}
   });
 
-  // Load patient data from Firebase if QR data exists but other fields are missing
+  const { checkInventoryItem, updateInventoryQuantity, logUsageHistory } = useDeptInventory();
+  const [isConnected, setIsConnected] = useState(true);
+  const [showOfflineBanner, setShowOfflineBanner] = useState(false);
+  
+  const db = useMemo(() => getDatabase(), []);
+
+  // Network & Firebase setup
   useEffect(() => {
-    const loadPatientData = async () => {
-      // Always try to load patient data if we have QR data
-      if (patientData?.qrData) {
-        console.log('Loading patient data for QR:', patientData.qrData);
-        try {
-          const db = getDatabase();
-          const patientRef = ref(db, `patient/${patientData.qrData}`);
-          const snapshot = await get(patientRef);
-          
-          if (snapshot.exists()) {
-            const fullPatientData = snapshot.val();
-            console.log('Full patient data loaded from Firebase:', JSON.stringify(fullPatientData, null, 2));
-            
-            // Update personal information
-            dispatch({
-              type: 'SET_PERSONAL_INFO',
-              payload: {
-                firstName: fullPatientData.firstName || '',
-                lastName: fullPatientData.lastName || '',
-                birth: fullPatientData.birth || '',
-                age: fullPatientData.age ? fullPatientData.age.toString() : '',
-                dateTime: fullPatientData.dateTime || new Date().toISOString(),
-                contact: fullPatientData.contact || '',
-                diagnosis: fullPatientData.diagnosis || '',
-                roomType: fullPatientData.roomType || '',
-                status: fullPatientData.status || '',
-                qrData: patientData.qrData, // Use the QR data from scan
-                gender: fullPatientData.gender || ''
-              }
-            });
-
-            // Update inventory data
-            dispatch({
-              type: 'UPDATE_INVENTORY',
-              payload: {
-                suppliesUsed: Array.isArray(fullPatientData.suppliesUsed) ? fullPatientData.suppliesUsed : [],
-                medUse: Array.isArray(fullPatientData.medUse) ? fullPatientData.medUse : [],
-                scannedItems: [] // Always start with empty scanned items
-              }
-            });
-
-            // Update prescriptions
-            if (fullPatientData.prescriptions) {
-              dispatch({
-                type: 'ADD_PRESCRIPTION',
-                payload: fullPatientData.prescriptions
-              });
-            }
-          } else {
-            console.log('No patient data found in Firebase for QR:', patientData.qrData);
-            Alert.alert('Error', 'Patient data not found in database');
-          }
-        } catch (error) {
-          console.error('Error loading patient data from Firebase:', error);
-          Alert.alert('Error', 'Failed to load patient data');
-        }
-      } else {
-        console.log('No QR data available to load patient info');
-      }
-    };
-
-    loadPatientData();
-  }, [patientData?.qrData]); // Only depend on QR data
-
-  // Camera permissions hook
-  const [permission, requestPermission] = useCameraPermissions();
-
-  // Initialize user department
-  const initializeUserDepartment = useCallback(async () => {
-    const user = auth.currentUser;
-    if (user) {
-      try {
-        const db = getDatabase();
-        const userRef = ref(db, `users/${user.uid}`);
-        const snapshot = await get(userRef);
-        if (snapshot.exists()) {
-          const userData = snapshot.val();
-          dispatch({ type: 'SET_USER_DEPARTMENT', payload: userData.role });
-        }
-      } catch (error) {
-        console.error('Error fetching user department:', error);
-      }
-    }
-  }, []);
-
-  // Initialize camera permissions
-  const initializeCameraPermissions = useCallback(async () => {
-    if (!permission || permission.status !== 'granted') {
-      await requestPermission();
-      if (permission && permission.status !== 'granted') {
-        Alert.alert('Error', 'Camera permissions are required to scan barcodes.');
-      }
-    }
-  }, [permission, requestPermission]);
-
-  // **useEffect Hook**
-  useEffect(() => {
-    initializeUserDepartment();
-    initializeCameraPermissions();
-  }, [initializeUserDepartment, initializeCameraPermissions]);
-
-  // Barcode scanning handlers
-  const handleScan = useCallback((type) => {
-    dispatch({ 
-      type: 'SET_UI_STATE', 
-      payload: { 
-        scanning: true, 
-        scanType: type 
-      } 
+    const unsubscribeNetInfo = NetInfo.addEventListener(state => {
+      const connected = state.isConnected && state.isInternetReachable;
+      setIsConnected(connected);
+      setShowOfflineBanner(!connected);
+      connected ? goOnline(db) : goOffline(db);
     });
+
+    return unsubscribeNetInfo;
+  }, [db]);
+
+  // Firebase listeners
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const userRef = ref(db, `users/${user.uid}`);
+    const patientRef = ref(db, `patient/${patientData.qrData}`);
+
+    const userListener = onValue(userRef, (snapshot) => {
+      if (snapshot.exists()) {
+        dispatch({ type: 'SET_USER_DEPARTMENT', payload: snapshot.val().department });
+      }
+    }, (error) => {
+      console.error('User listener error:', error);
+    });
+
+    const patientListener = onValue(patientRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const fullPatientData = snapshot.val();
+        dispatch({ type: 'SET_PERSONAL_INFO', payload: fullPatientData });
+        dispatch({
+          type: 'UPDATE_INVENTORY',
+          payload: {
+            suppliesUsed: Array.isArray(fullPatientData.suppliesUsed) ? fullPatientData.suppliesUsed : [],
+            medUse: Array.isArray(fullPatientData.medUse) ? fullPatientData.medUse : [],
+            scannedItems: []
+          }
+        });
+        if (fullPatientData.prescriptions) {
+          dispatch({ type: 'ADD_PRESCRIPTION', payload: fullPatientData.prescriptions });
+        }
+      }
+    }, (error) => {
+      console.error('Patient listener error:', error);
+    });
+
+    // Connection status listener
+    const connectedRef = ref(db, '.info/connected');
+    const connectedListener = onValue(connectedRef, (snapshot) => {
+      if (snapshot.val() === true) {
+        dispatch({
+          type: 'SET_UI_STATE',
+          payload: {
+            snackbar: { visible: true, message: 'Back online! Syncing changes...' }
+          }
+        });
+      }
+    }, (error) => {
+      console.error('Connection listener error:', error);
+    });
+
+    return () => {
+      off(userRef);
+      off(patientRef);
+      off(connectedRef);
+    };
+  }, [patientData.qrData, db]);
+
+  // Handlers
+  const handleScan = useCallback((type) => {
+    dispatch({ type: 'SET_UI_STATE', payload: { scanning: true, scanType: type } });
   }, []);
 
   const handleBarCodeScanned = useCallback(async ({ data }) => {
-    if (!state.ui.scanning) return;
-    
-    dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
+    if (!state.ui?.scanType) {
+      Alert.alert('Error', 'Scan type not specified.');
+      return;
+    }
 
     try {
-      const item = await checkInventoryItem(data, state.ui.scanType, state.userDepartment);
+      const item = await checkInventoryItem(data, state.ui.scanType);
       if (item) {
         dispatch({ 
           type: 'SET_UI_STATE', 
           payload: { 
             currentScannedItem: item,
-            quantityModalVisible: true
+            quantityModalVisible: true,
+            scanning: false 
           } 
         });
       } else {
-        Alert.alert('Error', 'Item not found in inventory.');
+        const message = isConnected 
+          ? 'Item not found in inventory.' 
+          : 'Item not found in offline cache.';
+        Alert.alert(isConnected ? 'Error' : 'Offline Mode', message);
+        dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
       }
     } catch (error) {
-      console.error('Error scanning item:', error);
-      Alert.alert('Error', error.message || 'Failed to fetch item data.');
+      console.error('Barcode scan error:', error);
+      Alert.alert('Error', isConnected ? 'Failed to process scanned item.' : 'Cannot process item while offline.');
+      dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
     }
-  }, [state.ui.scanning, state.ui.scanType, state.userDepartment, checkInventoryItem]);
+  }, [state.ui?.scanType, checkInventoryItem, isConnected]);
 
   const handleQuantityConfirm = useCallback(async (quantity) => {
-    const parsedQuantity = parseInt(quantity, 10);
     const item = state.ui.currentScannedItem;
-    
-    if (!item) {
-      Alert.alert('Error', 'No item selected.');
-      return;
-    }
-    
-    if (isNaN(parsedQuantity) || parsedQuantity <= 0) {
-      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
+    if (!item || !quantity || quantity <= 0) {
+      Alert.alert('Error', 'Invalid quantity specified.');
       return;
     }
 
-    if (!state.userDepartment) {
-      Alert.alert('Error', 'Failed to determine user department.');
+    // Validate quantity is a number
+    const numericQuantity = parseInt(quantity, 10);
+    if (isNaN(numericQuantity) || numericQuantity <= 0) {
+      Alert.alert('Error', 'Please enter a valid quantity.');
       return;
     }
 
-    try {
-      const db = getDatabase();
-      let itemRef;
-
-      if (item.type === 'supplies') {
-        itemRef = ref(db, `departments/${state.userDepartment}/localSupplies/${item.id}`);
-      } else if (item.type === 'medicines') {
-        itemRef = ref(db, `departments/${state.userDepartment}/localMeds/${item.id}`);
-      }
-
-      const snapshot = await get(itemRef);
-
-      if (snapshot.exists()) {
-        const itemData = snapshot.val();
-        const availableQuantity = itemData.quantity;
-
-        if (availableQuantity >= parsedQuantity) {
-          dispatch({ 
-            type: 'UPDATE_INVENTORY', 
-            payload: { 
-              scannedItems: [...state.inventory.scannedItems, { ...item, quantity: parsedQuantity }]
-            } 
-          });
-          
-          dispatch({ 
-            type: 'SET_UI_STATE', 
-            payload: { 
-              currentScannedItem: null, 
-              quantityModalVisible: false 
-            } 
-          });
-        } else {
-          Alert.alert(
-            'Insufficient Quantity',
-            `Only ${availableQuantity} units of ${item.name} are available.`
-          );
-        }
-      } else {
-        Alert.alert('Error', 'Item not found in inventory.');
-      }
-    } catch (error) {
-      console.error('Error confirming quantity:', error);
-      Alert.alert('Error', 'Failed to check item quantity.');
-    }
-  }, [state.ui.currentScannedItem, state.userDepartment, state.inventory.scannedItems]);
-
-  const handleAddPrescription = useCallback((prescription) => {
-    if (!prescription.name) {
-      Alert.alert('Error', 'Please enter a prescription name');
-      return;
-    }
-
+    // Just add to scanned items list, don't update inventory yet
     dispatch({
-      type: 'ADD_PRESCRIPTION',
-      payload: { [Date.now()]: {
-        prescriptionName: prescription.name,
-        dosage: prescription.dosage,
-        instruction: prescription.instructions,
-        createdAt: new Date().toISOString(),
-      }}
+      type: 'UPDATE_INVENTORY',
+      payload: {
+        scannedItems: [...state.inventory.scannedItems, { 
+          ...item, 
+          quantity: numericQuantity, // Ensure it's a number
+          offline: !isConnected
+        }]
+      }
     });
-    
+
     dispatch({ 
       type: 'SET_UI_STATE', 
-      payload: { prescriptionModalVisible: false } 
+      payload: { 
+        currentScannedItem: null,
+        quantityModalVisible: false,
+        snackbar: {
+          visible: true,
+          message: 'Item added to list. Press "Save Changes" to update inventory.'
+        }
+      } 
     });
-  }, []);
+  }, [state.ui.currentScannedItem, state.inventory.scannedItems, isConnected]);
 
   const handleSaveAll = useCallback(async () => {
-    const { firstName, lastName, birth, contact, diagnosis, roomType, status, gender, qrData } = state.personalInfo;
-    
-    if (!qrData) {
-      Alert.alert('Error', 'Patient QR data is missing.');
-      return;
-    }
-  
-    if (!firstName || !lastName || !birth || !contact || !diagnosis || !roomType || !status || !gender) {
-      Alert.alert('Error', 'All fields must be filled out before saving.');
-      return;
-    }
-
-    dispatch({ type: 'SET_UI_STATE', payload: { loading: true } });
-    
     try {
-      const db = getDatabase();
-      const patientRef = ref(db, `patient/${qrData}`);
+      dispatch({ type: 'SET_UI_STATE', payload: { loading: true } });
       
       let updatedSuppliesUsed = [...state.inventory.suppliesUsed];
       let updatedMedUse = [...state.inventory.medUse];
 
-      // Update inventory quantities and add scanned items to used lists
-      for (const scannedItem of state.inventory.scannedItems) {
-        const quantityToUse = scannedItem.quantity;
-        const itemType = scannedItem.type;
-        let itemRef;
+      // Process scanned items
+      if (state.inventory.scannedItems.length > 0) {
+        console.log('Processing scanned items:', state.inventory.scannedItems);
+        
+        // Validate all scanned items before processing
+        const validationResults = state.inventory.scannedItems.map(item => {
+          console.log('Validating item:', item);
+          return {
+            item,
+            validation: validateScannedItem(item)
+          };
+        });
 
-        if (itemType === 'supplies') {
-          itemRef = ref(db, `departments/${state.userDepartment}/localSupplies/${scannedItem.id}`);
-        } else if (itemType === 'medicines') {
-          itemRef = ref(db, `departments/${state.userDepartment}/localMeds/${scannedItem.id}`);
+        const validItems = validationResults
+          .filter(result => {
+            if (!result.validation.isValid) {
+              console.warn('Invalid item:', result.item, 'Errors:', result.validation.errors);
+            }
+            return result.validation.isValid;
+          })
+          .map(result => result.validation.sanitized);
+
+        const invalidItems = validationResults.filter(result => !result.validation.isValid);
+
+        if (invalidItems.length > 0) {
+          console.warn('Invalid items found:', invalidItems);
+          const errorMessages = invalidItems.map(result => 
+            `Item ${result.item.name || 'Unknown'}: ${result.validation.errors.join(', ')}`
+          ).join('\n');
+          
+          Alert.alert('Validation Error', `Some items have errors:\n${errorMessages}`);
+          dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+          return;
         }
 
-        const snapshot = await get(itemRef);
-        if (snapshot.exists()) {
-          const itemDetails = snapshot.val();
+        if (validItems.length === 0) {
+          Alert.alert('Error', 'No valid items to save.');
+          dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+          return;
+        }
+
+        console.log('Valid items after sanitization:', validItems);
+
+        // Create inventory updates with validation
+        const inventoryUpdateResults = validItems.map(item => {
+          const update = {
+            id: item.id,
+            type: item.type,
+            quantityUsed: item.quantity
+          };
+          console.log('Creating inventory update:', update);
           
-          if (itemDetails.quantity >= quantityToUse) {
-            const updatedQuantity = itemDetails.quantity - quantityToUse;
-            await update(itemRef, { quantity: updatedQuantity });
+          return {
+            original: item,
+            validation: validateInventoryUpdate(update)
+          };
+        });
 
-            const timestamp = new Date().toISOString();
-            const retailPrice = itemDetails.retailPrice || 0;
-
-            const usageEntry = {
-              id: scannedItem.id,
-              name: scannedItem.name,
-              quantity: quantityToUse,
-              timestamp: timestamp,
-              retailPrice: retailPrice,
-              shortDesc: scannedItem.shortDesc || '',
-              standardDesc: scannedItem.standardDesc || '',
-            };
-
-            if (itemType === 'supplies') {
-              updatedSuppliesUsed.push(usageEntry);
-            } else if (itemType === 'medicines') {
-              updatedMedUse.push(usageEntry);
+        const validUpdates = inventoryUpdateResults
+          .filter(result => {
+            if (!result.validation.isValid) {
+              console.error('Invalid inventory update:', result.original, 'Errors:', result.validation.errors);
             }
+            return result.validation.isValid;
+          })
+          .map(result => result.validation.sanitized);
 
-            await logUsageHistory(state.personalInfo, scannedItem, quantityToUse, itemType, state.userDepartment);
-          } else {
-            Alert.alert('Error', 'Insufficient quantity in inventory for ' + scannedItem.name);
+        const invalidUpdates = inventoryUpdateResults.filter(result => !result.validation.isValid);
+
+        if (invalidUpdates.length > 0) {
+          console.error('Invalid inventory updates:', invalidUpdates);
+          Alert.alert('Error', 'Some items failed validation and cannot be processed.');
+          dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+          return;
+        }
+
+        console.log('Final valid inventory updates:', validUpdates);
+
+        // Only proceed with inventory updates if we're online
+        if (isConnected && validUpdates.length > 0) {
+          try {
+            console.log('Sending inventory updates:', validUpdates);
+            const success = await updateInventoryQuantity(validUpdates);
+            console.log('Inventory update result:', success);
+            
+            if (!success) {
+              throw new Error('Inventory update returned false');
+            }
+          } catch (inventoryError) {
+            console.error('Inventory update error:', inventoryError);
+            Alert.alert('Inventory Update Error', `Failed to update inventory: ${inventoryError.message}`);
+            dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+            return;
           }
-        } else {
-          Alert.alert('Error', 'Item details not found for ' + scannedItem.name);
+        } else if (!isConnected) {
+          console.log('Offline mode - skipping inventory updates');
+        }
+
+        // Log usage history and create usage entries for all valid items
+        for (const item of validItems) {
+          console.log('Processing usage entry for:', item);
+          
+          if (isConnected) {
+            try {
+              await logUsageHistory(state.personalInfo, item, item.quantity, item.type);
+            } catch (historyError) {
+              console.warn('Failed to log usage history:', historyError);
+              // Continue processing even if history logging fails
+            }
+          }
+
+          const usageEntry = {
+            id: item.id,
+            name: item.name,
+            quantity: item.quantity,
+            timestamp: new Date().toISOString(),
+            retailPrice: parseFloat(item.retailPrice || 0),
+            shortDesc: item.shortDesc || '',
+            standardDesc: item.standardDesc || '',
+            offline: item.offline || !isConnected
+          };
+
+          console.log('Created usage entry:', usageEntry);
+
+          if (item.type === 'supplies') {
+            updatedSuppliesUsed.push(usageEntry);
+          } else if (item.type === 'medicines') {
+            updatedMedUse.push(usageEntry);
+          }
         }
       }
 
-      const updatedData = {
+      const updatedPatientData = {
         ...state.personalInfo,
         suppliesUsed: updatedSuppliesUsed,
         medUse: updatedMedUse,
         prescriptions: state.prescriptions,
+        lastModified: new Date().toISOString(),
+        modifiedBy: auth.currentUser?.uid
       };
 
-      await set(patientRef, updatedData);
+      console.log('Saving patient data:', updatedPatientData);
 
-      dispatch({ 
-        type: 'UPDATE_INVENTORY', 
-        payload: { 
+      // Only update Firebase if connected
+      if (isConnected) {
+        try {
+          await set(ref(db, `patient/${patientData.qrData}`), updatedPatientData);
+          console.log('Patient data saved successfully');
+        } catch (firebaseError) {
+          console.error('Firebase save error:', firebaseError);
+          Alert.alert('Save Error', `Failed to save to database: ${firebaseError.message}`);
+          dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+          return;
+        }
+      }
+
+      dispatch({
+        type: 'UPDATE_INVENTORY',
+        payload: {
           suppliesUsed: updatedSuppliesUsed,
           medUse: updatedMedUse,
-          scannedItems: []
-        } 
+          scannedItems: [] // Clear scanned items after saving
+        }
       });
-      
+
       dispatch({ 
         type: 'SET_UI_STATE', 
         payload: { 
-          loading: false,
-          snackbar: {
-            visible: true,
-            message: 'Data saved successfully!'
-          }
+          snackbar: { 
+            visible: true, 
+            message: isConnected ? 'Saved successfully! Inventory updated.' : 'Saved offline. Will sync when connected.'
+          },
+          loading: false
         } 
       });
     } catch (error) {
-      console.error('Save Error:', error);
-      Alert.alert('Error', 'An error occurred while saving data.');
+      console.error('Save error:', error);
+      Alert.alert('Save Error', `Failed to save changes: ${error.message || 'Unknown error'}`);
       dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
     }
-  }, [state, logUsageHistory]);
+  }, [state, patientData.qrData, db, isConnected, updateInventoryQuantity, logUsageHistory]);
 
-  const handleRemoveScannedItem = useCallback((itemId) => {
+  const handleManualSync = useCallback(() => {
+    goOnline(db);
     dispatch({
-      type: 'UPDATE_INVENTORY',
+      type: 'SET_UI_STATE',
       payload: {
-        scannedItems: state.inventory.scannedItems.filter(item => item.id !== itemId)
+        snackbar: { visible: true, message: 'Sync initiated.' }
       }
     });
-  }, [state.inventory.scannedItems]);
+  }, [db]);
 
-  const handleDateChange = useCallback((event, selectedDate) => {
-    if (selectedDate) {
-      dispatch({ 
-        type: 'SET_PERSONAL_INFO', 
-        payload: { birth: selectedDate.toISOString().split('T')[0] } 
-      });
-    }
-    dispatch({ type: 'SET_UI_STATE', payload: { showDatePicker: false } });
-  }, []);
-
-  // **Memoized values and render functions**
+  // Memoized values
   const memoizedPrescriptions = useMemo(() => 
-    Object.entries(state.prescriptions).map(([key, item]) => ({
-      key,
-      name: item.prescriptionName,
-      dosage: item.dosage,
-      instructions: item.instruction,
-      createdAt: item.createdAt,
-    })), [state.prescriptions]);
+    Object.entries(state.prescriptions || {}).map(([key, item]) => ({ key, ...item })), 
+    [state.prescriptions]
+  );
 
-  // **Render Method**
+  // Add safety checks for UI state
+  const uiState = state.ui || {};
+  const inventoryState = state.inventory || { suppliesUsed: [], medUse: [], scannedItems: [] };
+
   return (
     <ErrorBoundary>
       <PaperProvider theme={theme}>
-        <View style={styles.fullScreenContainer}>
-          <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
-          <Appbar.Header>
-            <Appbar.BackAction onPress={() => navigation.goBack()} />
-            <Appbar.Content title="Patient Information" />
-          </Appbar.Header>
+        <View style={styles.container}>
+          <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
           
-          <ScrollView contentContainerStyle={styles.container}>
-            {/* Personal Information Section */}
+       
+
+          {showOfflineBanner && (
+            <Banner
+              visible={showOfflineBanner}
+              actions={[
+                { 
+                  label: 'Dismiss', 
+                  onPress: () => setShowOfflineBanner(false) 
+                },
+                { 
+                  label: 'Retry', 
+                  onPress: handleManualSync 
+                }
+              ]}
+              icon="cloud-off-outline"
+            >
+              <Text>You're offline. Changes saved locally and will sync when connected.</Text>
+            </Banner>
+          )}
+
+          <ScrollView style={styles.scrollView}>
             <PersonalInformationCard
-              data={state.personalInfo}
-              onUpdate={(updates) => dispatch({ 
-                type: 'SET_PERSONAL_INFO', 
-                payload: updates 
-              })}
-              showDatePicker={state.ui.showDatePicker}
-              setShowDatePicker={(show) => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { showDatePicker: show }
-              })}
-              handleDateChange={handleDateChange}
-              styles={styles}
+              data={state.personalInfo || {}}
+              onUpdate={(updates) => dispatch({ type: 'SET_PERSONAL_INFO', payload: updates })}
+              showDatePicker={uiState.showDatePicker || false}
+              setShowDatePicker={(show) => dispatch({ type: 'SET_UI_STATE', payload: { showDatePicker: show } })}
+              handleDateChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  dispatch({ type: 'SET_PERSONAL_INFO', payload: { birth: selectedDate.toISOString().split('T')[0] } });
+                }
+                dispatch({ type: 'SET_UI_STATE', payload: { showDatePicker: false } });
+              }}
+              offline={!isConnected}
             />
 
-            {/* Supplies Used Section */}
-            <SuppliesUsedCard
-              data={state.inventory.suppliesUsed}
-              onScan={() => handleScan('supplies')}
-              searchTerm={state.ui.suppliesSearchTerm}
-              onSearchChange={(term) => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { suppliesSearchTerm: term }
-              })}
-              styles={styles}
+            <SuppliesUsedCard 
+              data={inventoryState.suppliesUsed || []} 
+              onScan={() => handleScan('supplies')} 
+              offline={!isConnected} 
+            />
+            
+            <MedicinesUsedCard 
+              data={inventoryState.medUse || []} 
+              onScan={() => handleScan('medicines')} 
+              offline={!isConnected} 
             />
 
-            {/* Medicines Used Section */}
-            <MedicinesUsedCard
-              data={state.inventory.medUse}
-              onScan={() => handleScan('medicines')}
-              searchTerm={state.ui.medSearchTerm}
-              onSearchChange={(term) => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { medSearchTerm: term }
-              })}
-              styles={styles}
-            />
-
-            {/* Scanned Items Preview */}
-            {state.inventory.scannedItems.length > 0 && (
+            {inventoryState.scannedItems && inventoryState.scannedItems.length > 0 && (
               <ScannedItemsCard
-                items={state.inventory.scannedItems}
-                onRemove={handleRemoveScannedItem}
-                styles={styles}
+                items={inventoryState.scannedItems}
+                onRemove={(id) => dispatch({
+                  type: 'UPDATE_INVENTORY',
+                  payload: { scannedItems: inventoryState.scannedItems.filter(item => item.id !== id) }
+                })}
+                offline={!isConnected}
               />
             )}
 
-            {/* Prescriptions Section */}
             <PrescriptionsCard
               prescriptions={memoizedPrescriptions}
-              onAdd={() => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { prescriptionModalVisible: true }
-              })}
+              onAdd={() => dispatch({ type: 'SET_UI_STATE', payload: { prescriptionModalVisible: true } })}
               onDelete={(key) => {
-                const { [key]: removed, ...rest } = state.prescriptions;
-                dispatch({
-                  type: 'ADD_PRESCRIPTION',
-                  payload: rest
-                });
+                const { [key]: removed, ...rest } = state.prescriptions || {};
+                dispatch({ type: 'ADD_PRESCRIPTION', payload: rest });
               }}
-              styles={styles}
+              offline={!isConnected}
             />
 
-            <Button
-              buttonColor="#0D8549"
-              mode="contained"
-              onPress={handleSaveAll}
-              style={styles.saveButton}
-              loading={state.ui.loading}
-            >
-              Save Changes
-            </Button>
+            <View style={styles.saveButtonContainer}>
+              <Button
+                mode="contained"
+                onPress={handleSaveAll}
+                style={[styles.saveButton, !isConnected && styles.offlineButton]}
+                loading={uiState.loading || false}
+                icon={!isConnected ? "content-save-outline" : "content-save"}
+                labelStyle={styles.saveButtonLabel}
+                contentStyle={styles.saveButtonContent}
+              >
+                <Text style={styles.saveButtonText}>
+                  {isConnected ? 'Save Changes' : 'Save Offline'}
+                </Text>
+              </Button>
+            </View>
           </ScrollView>
 
-          {/* Modals */}
           <Portal>
-            {/* Prescription Modal */}
             <PrescriptionModal
-              visible={state.ui.prescriptionModalVisible}
-              onDismiss={() => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { prescriptionModalVisible: false }
-              })}
-              onAdd={handleAddPrescription}
+              visible={uiState.prescriptionModalVisible || false}
+              onDismiss={() => dispatch({ type: 'SET_UI_STATE', payload: { prescriptionModalVisible: false } })}
+              onAdd={(prescription) => dispatch({ type: 'ADD_PRESCRIPTION', payload: { [Date.now()]: prescription } })}
             />
 
-            {/* Quantity Input Modal */}
             <QuantityModal
-              visible={state.ui.quantityModalVisible}
-              item={state.ui.currentScannedItem}
+              visible={uiState.quantityModalVisible || false}
+              item={uiState.currentScannedItem || null}
               onConfirm={handleQuantityConfirm}
-              onDismiss={() => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { quantityModalVisible: false }
-              })}
+              onDismiss={() => dispatch({ type: 'SET_UI_STATE', payload: { quantityModalVisible: false } })}
+              offline={!isConnected}
             />
 
-            {/* Barcode Scanner Modal */}
             <BarcodeScannerModal
-              visible={state.ui.scanning}
+              visible={uiState.scanning || false}
               onScan={handleBarCodeScanned}
-              onDismiss={() => dispatch({
-                type: 'SET_UI_STATE',
-                payload: { scanning: false }
-              })}
+              onDismiss={() => dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } })}
             />
           </Portal>
 
-          {/* Snackbar for Notifications */}
           <Snackbar
-            visible={state.ui.snackbar.visible}
-            onDismiss={() => dispatch({
-              type: 'SET_UI_STATE',
-              payload: { snackbar: { visible: false, message: '' } }
-            })}
-            duration={3000}
+            visible={uiState.snackbar?.visible || false}
+            onDismiss={() => dispatch({ type: 'SET_UI_STATE', payload: { snackbar: { visible: false, message: '' } } })}
+            duration={4000}
           >
-            {state.ui.snackbar.message}
+            <Text>{uiState.snackbar?.message || ''}</Text>
           </Snackbar>
         </View>
       </PaperProvider>
@@ -568,90 +530,45 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
 const theme = {
   ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: '#6200ee',
-    accent: '#03dac4',
-  },
+  colors: { 
+    ...DefaultTheme.colors, 
+    primary: '#667eea', 
+    accent: '#764ba2',
+    surface: '#ffffff',
+    background: '#f5f5f5'
+  }
 };
 
 const styles = StyleSheet.create({
-  fullScreenContainer: {
+  container: { 
     flex: 1,
+    backgroundColor: '#f5f5f5'
   },
-  container: {
-    padding: 16,
+  scrollView: { 
+    padding: 16 
   },
-  sectionContainer: {
-    marginBottom: 16,
+  saveButtonContainer: {
+    marginVertical: 20,
   },
-  input: {
-    marginBottom: 12,
+  saveButton: { 
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+    elevation: 4,
   },
-  subheading: {
-    color: '#000000',
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
+  offlineButton: { 
+    backgroundColor: '#FF9800' 
   },
-  searchbar: {
-    marginBottom: 12,
-  },
-  scanButton: {
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  addButton: {
-    marginTop: 16,
-  },
-  saveButton: {
-    margin: 16,
-  },
-  modalContent: {
-    color: '#000000',
-    margin: 16,
-  },
-  modalActions: {
-    justifyContent: 'flex-end',
-  },
-  scannerContainer: {
-    flex: 1,
-  },
-  closeScannerButton: {
-    position: 'absolute',
-    bottom: 20,
-    alignSelf: 'center',
-    backgroundColor: '#fff',
-  },
-  prescriptionCard: {
-    marginBottom: 12,
-  },
-  usedItemCard: {
-    marginVertical: 6,
-  },
-  scannedItemCard: {
-    marginVertical: 6,
-  },
-  scannedItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-  },
-  scannedItemInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
-  scannedItemName: {
+  saveButtonLabel: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontWeight: '600',
   },
-  scannedItemDetails: {
-    fontSize: 14,
-    color: '#666',
+  saveButtonContent: {
+    paddingVertical: 8,
+  },
+  saveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
