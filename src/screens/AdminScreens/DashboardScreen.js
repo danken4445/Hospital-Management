@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, StyleSheet, SafeAreaView, Dimensions, StatusBar, Text, Platform } from 'react-native';
-import { Card, Surface, IconButton, Badge, ActivityIndicator } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import UsageAnalyticsCard from '../../components/UsageAnalyticsCard';
+import { ScrollView, View, StyleSheet, StatusBar, ActivityIndicator, Text } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { auth, database } from '../../../firebaseConfig';
-import { ref, get, onValue, off } from 'firebase/database';
+import { ref, get } from 'firebase/database';
+import UsageAnalyticsCard from '../../components/UsageAnalyticsCard';
+import WelcomeHeader from '../../components/dashboard/WelcomeHeader';
+import AdminStatsGrid from '../../components/dashboard/AdminStatsGrid';
+import DashboardSection from '../../components/dashboard/DashboardSection';
+import { getAdminDashboardFeatures, getAdminStatsConfig } from '../../utils/adminDashboardHelpers';
 
-const { width, height } = Dimensions.get('window');
-
-const Dashboard = ({ navigation }) => {
+const Dashboard = ({ navigation, route }) => {
   const [userName, setUserName] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  
+  // Get clinic context from navigation params
+  const { clinic, permissions } = route?.params || {};
+  const [userClinic, setUserClinic] = useState(clinic || null);
   
   // Real-time analytics data
   const [dashboardStats, setDashboardStats] = useState({
@@ -40,10 +44,27 @@ const Dashboard = ({ navigation }) => {
     try {
       const user = auth.currentUser;
       if (user) {
-        const userRef = ref(database, `users/${user.uid}`);
-        const snapshot = await get(userRef);
-        if (snapshot.exists()) {
-          const userData = snapshot.val();
+        let userData = null;
+        
+        // If we have clinic context, try clinic-specific user data first
+        if (userClinic) {
+          const clinicUserRef = ref(database, `${userClinic}/users/${user.uid}`);
+          const clinicSnapshot = await get(clinicUserRef);
+          if (clinicSnapshot.exists()) {
+            userData = clinicSnapshot.val();
+          }
+        }
+        
+        // If no clinic-specific data found, try global users
+        if (!userData) {
+          const globalUserRef = ref(database, `users/${user.uid}`);
+          const globalSnapshot = await get(globalUserRef);
+          if (globalSnapshot.exists()) {
+            userData = globalSnapshot.val();
+          }
+        }
+        
+        if (userData) {
           setUserName(`${userData.firstName} ${userData.lastName}`);
         }
       }
@@ -55,32 +76,64 @@ const Dashboard = ({ navigation }) => {
   const fetchDashboardAnalytics = async () => {
     setLoading(true);
     try {
+      // Determine the base path for queries
+      const basePath = userClinic || '';
+      
       // Fetch Users Count
-      const usersRef = ref(database, 'users');
+      const usersRef = ref(database, userClinic ? `${userClinic}/users` : 'users');
       const usersSnapshot = await get(usersRef);
       const usersCount = usersSnapshot.exists() ? Object.keys(usersSnapshot.val()).length : 0;
 
       // Fetch Patients Count
-      const patientsRef = ref(database, 'patients');
+      const patientsRef = ref(database, userClinic ? `${userClinic}/patients` : 'patients');
       const patientsSnapshot = await get(patientsRef);
       const patientsCount = patientsSnapshot.exists() ? Object.keys(patientsSnapshot.val()).length : 0;
 
-      // Fetch Inventory Count
-      const inventoryRef = ref(database, 'inventory');
-      const inventorySnapshot = await get(inventoryRef);
+      // Fetch Inventory Count from multiple sources if clinic-specific
       let inventoryCount = 0;
-      if (inventorySnapshot.exists()) {
-        const inventoryData = inventorySnapshot.val();
-        inventoryCount = Object.values(inventoryData).reduce((total, category) => {
-          if (typeof category === 'object' && category !== null) {
-            return total + Object.keys(category).length;
+      if (userClinic) {
+        // Count from pharmacy inventory
+        const pharmacyRef = ref(database, `${userClinic}/pharmacy/medicines`);
+        const pharmacySnapshot = await get(pharmacyRef);
+        if (pharmacySnapshot.exists()) {
+          inventoryCount += Object.keys(pharmacySnapshot.val()).length;
+        }
+        
+        // Count from department inventories
+        const departments = ['ICU', 'ER', 'COVID UNIT', 'Outpatient'];
+        for (const dept of departments) {
+          const deptMedsRef = ref(database, `${userClinic}/departments/${dept}/localMeds`);
+          const deptSuppliesRef = ref(database, `${userClinic}/departments/${dept}/localSupplies`);
+          
+          const [medsSnapshot, suppliesSnapshot] = await Promise.all([
+            get(deptMedsRef),
+            get(deptSuppliesRef)
+          ]);
+          
+          if (medsSnapshot.exists()) {
+            inventoryCount += Object.keys(medsSnapshot.val()).length;
           }
-          return total;
-        }, 0);
+          if (suppliesSnapshot.exists()) {
+            inventoryCount += Object.keys(suppliesSnapshot.val()).length;
+          }
+        }
+      } else {
+        // Legacy global inventory count
+        const inventoryRef = ref(database, 'inventory');
+        const inventorySnapshot = await get(inventoryRef);
+        if (inventorySnapshot.exists()) {
+          const inventoryData = inventorySnapshot.val();
+          inventoryCount = Object.values(inventoryData).reduce((total, category) => {
+            if (typeof category === 'object' && category !== null) {
+              return total + Object.keys(category).length;
+            }
+            return total;
+          }, 0);
+        }
       }
 
       // Fetch Usage History for efficiency calculation
-      const usageRef = ref(database, 'usageHistory');
+      const usageRef = ref(database, userClinic ? `${userClinic}/usageHistory` : 'usageHistory');
       const usageSnapshot = await get(usageRef);
       let totalUsages = 0;
       let successfulUsages = 0;
@@ -102,23 +155,40 @@ const Dashboard = ({ navigation }) => {
       const efficiency = totalUsages > 0 ? Math.round((successfulUsages / totalUsages) * 100) : 95;
 
       // Fetch recent scans count
-      const scansRef = ref(database, 'recentScans');
+      const scansRef = ref(database, userClinic ? `${userClinic}/recentScans` : 'recentScans');
       const scansSnapshot = await get(scansRef);
       const recentScans = scansSnapshot.exists() ? Object.keys(scansSnapshot.val()).length : 0;
 
       // Calculate critical alerts (low stock items)
       let criticalAlerts = 0;
-      if (inventorySnapshot.exists()) {
-        const inventoryData = inventorySnapshot.val();
-        Object.values(inventoryData).forEach(category => {
-          if (typeof category === 'object') {
-            Object.values(category).forEach(item => {
-              if (item.quantity && item.quantity < 10) {
-                criticalAlerts++;
-              }
-            });
-          }
-        });
+      if (userClinic) {
+        // Check pharmacy inventory
+        const pharmacyRef = ref(database, `${userClinic}/pharmacy/medicines`);
+        const pharmacySnapshot = await get(pharmacyRef);
+        if (pharmacySnapshot.exists()) {
+          const pharmacyData = pharmacySnapshot.val();
+          Object.values(pharmacyData).forEach(item => {
+            if (item.quantity && parseInt(item.quantity) < 10) {
+              criticalAlerts++;
+            }
+          });
+        }
+      } else {
+        // Legacy global inventory check
+        const inventoryRef = ref(database, 'inventory');
+        const inventorySnapshot = await get(inventoryRef);
+        if (inventorySnapshot.exists()) {
+          const inventoryData = inventorySnapshot.val();
+          Object.values(inventoryData).forEach(category => {
+            if (typeof category === 'object') {
+              Object.values(category).forEach(item => {
+                if (item.quantity && item.quantity < 10) {
+                  criticalAlerts++;
+                }
+              });
+            }
+          });
+        }
       }
 
       setDashboardStats({
@@ -154,67 +224,23 @@ const Dashboard = ({ navigation }) => {
       autoHide: true,
       bottomOffset: 40,
     });
-    navigation.navigate(screenName, params);
+    
+    // Always pass clinic context to child screens
+    const navigationParams = {
+      ...params,
+      clinic: userClinic,
+      permissions: permissions
+    };
+    
+    navigation.navigate(screenName, navigationParams);
   };
 
   const handleUsageAnalyticsPress = (chartType) => {
-    handleFeaturePress('UsageAnalyticsScreen', { chartType });
-  };
-
-  const formatTime = () => {
-    return currentTime.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+    handleFeaturePress('UsageAnalyticsScreen', { 
+      chartType,
+      clinic: userClinic 
     });
   };
-
-  const formatDate = () => {
-    return currentTime.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const getGreeting = () => {
-    const hour = currentTime.getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
-  const ModernFeatureCard = ({ title, subtitle, icon, color, onPress, badge }) => (
-    <Card style={styles.modernCard} onPress={onPress} elevation={4}>
-      <View style={styles.cardContent}>
-        <View style={[styles.cardIcon, { backgroundColor: color }]}>
-          <Icon name={icon} size={28} color="#ffffff" />
-          {badge > 0 && <Badge style={styles.cardBadge}>{badge}</Badge>}
-        </View>
-        <View style={styles.cardTextContainer}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardSubtitle}>{subtitle}</Text>
-        </View>
-        <Icon name="chevron-right" size={20} color="#bdc3c7" style={styles.cardArrow} />
-      </View>
-    </Card>
-  );
-
-  const StatCard = ({ icon, value, label, color, trend }) => (
-    <Surface style={styles.statCard} elevation={2}>
-      <View style={styles.statHeader}>
-        <Icon name={icon} size={24} color={color} />
-        {trend && (
-          <View style={[styles.trendIndicator, { backgroundColor: trend > 0 ? '#2ecc71' : '#e74c3c' }]}>
-            <Icon name={trend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#ffffff" />
-          </View>
-        )}
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </Surface>
-  );
 
   if (loading) {
     return (
@@ -230,152 +256,37 @@ const Dashboard = ({ navigation }) => {
       <StatusBar backgroundColor="#34495e" barStyle="light-content" translucent={false} />
       
       <ScrollView style={styles.mainScrollView} showsVerticalScrollIndicator={false}>
-        {/* Welcome Header - Not sticky, scrolls with content */}
-        <View style={styles.welcomeHeader}>
-          <SafeAreaView>
-            <View style={styles.welcomeContent}>
-              <View style={styles.welcomeLeft}>
-                <Text style={styles.greetingText}>{getGreeting()}</Text>
-                <Text style={styles.userNameText}>{userName || 'Administrator'}</Text>
-                <Text style={styles.dateText}>{formatDate()}</Text>
-              </View>
-              <View style={styles.welcomeRight}>
-                <Surface style={styles.timeContainer} elevation={2}>
-                  <Text style={styles.timeText}>{formatTime()}</Text>
-                </Surface>
-                <IconButton
-                  icon="refresh"
-                  iconColor="#ffffff"
-                  size={24}
-                  onPress={fetchDashboardAnalytics}
-                  style={styles.refreshButton}
-                />
-              </View>
-            </View>
-          </SafeAreaView>
-        </View>
+        {/* Welcome Header */}
+        <WelcomeHeader
+          userRole="admin"
+          userName={userName}
+          currentTime={currentTime}
+          userClinic={userClinic}
+          onRefresh={fetchDashboardAnalytics}
+          getDepartmentColor={() => '#34495e'}
+        />
 
         {/* Analytics Card */}
         <View style={styles.analyticsContainer}>
-          <UsageAnalyticsCard onChartPress={handleUsageAnalyticsPress} />
+          <UsageAnalyticsCard 
+            clinic={userClinic}
+            onChartPress={handleUsageAnalyticsPress} 
+          />
         </View>
 
-        {/* Real-time Stats Grid - FIXED */}
-        <View style={styles.statsContainer}>
-          <Text style={styles.sectionTitle}>System Overview</Text>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="account-group"
-              value={dashboardStats.totalUsers}
-              label="Total Users"
-              color="#3498db"
-              trend={5}
-            />
-            <StatCard
-              icon="account-heart"
-              value={dashboardStats.totalPatients}
-              label="Patients"
-              color="#e74c3c"
-              trend={2}
-            />
-            <StatCard
-              icon="package-variant"
-              value={dashboardStats.totalInventoryItems}
-              label="Inventory Items"
-              color="#2ecc71"
-              trend={-1}
-            />
-            <StatCard
-              icon="hospital-building"
-              value={dashboardStats.totalDepartments}
-              label="Departments"
-              color="#9b59b6"
-            />
-            <StatCard
-              icon="qrcode-scan"
-              value={dashboardStats.activeScans}
-              label="Recent Scans"
-              color="#f39c12"
-            />
-            <StatCard
-              icon="chart-line"
-              value={`${dashboardStats.systemEfficiency}%`}
-              label="Efficiency"
-              color="#1abc9c"
-              trend={3}
-            />
-          </View>
-        </View>
+        {/* Real-time Stats Grid */}
+        <AdminStatsGrid statsConfig={getAdminStatsConfig(dashboardStats)} />
 
         {/* Quick Actions */}
-        <Surface style={styles.dashboardContainer} elevation={4}>
-          <View style={styles.headerContainer}>
-            <View style={styles.headerContent}>
-              <View style={styles.headerLeft}>
-                <View style={styles.iconContainer}>
-                  <Icon name="shield-crown" size={32} color="#ffffff" />
-                </View>
-                <View>
-                  <Text style={styles.headerTitle}>ADMIN CONTROL</Text>
-                  <Text style={styles.headerSubtitle}>System Administration</Text>
-                </View>
-              </View>
-              <View style={styles.headerRight}>
-                {dashboardStats.criticalAlerts > 0 && (
-                  <Badge style={styles.alertBadge}>{dashboardStats.criticalAlerts}</Badge>
-                )}
-              </View>
-            </View>
-          </View>
-
-          <ScrollView style={styles.cardsScrollView} showsVerticalScrollIndicator={false}>
-            <View style={styles.modernGrid}>
-              <ModernFeatureCard
-                title="Inventory Management"
-                subtitle="Monitor stock levels"
-                icon="package-variant"
-                color="#3498db"
-                onPress={() => handleFeaturePress('InventoryScreen')}
-              />
-              <ModernFeatureCard
-                title="Account Creation"
-                subtitle="User management"
-                icon="account-plus"
-                color="#2ecc71"
-                onPress={() => handleFeaturePress('CreateAccountScreen')}
-              />
-              <ModernFeatureCard
-                title="Patient Scanner"
-                subtitle="QR code scanning"
-                icon="qrcode-scan"
-                color="#e74c3c"
-                onPress={() => handleFeaturePress('PatientScanner')}
-              />
-              <ModernFeatureCard
-                title="Inventory Scanner"
-                subtitle="Stock scanning"
-                icon="barcode-scan"
-                color="#f39c12"
-                onPress={() => handleFeaturePress('InventoryScanner')}
-              />
-              <ModernFeatureCard
-                title="Department Access"
-                subtitle="View all departments"
-                icon="hospital-building"
-                color="#9b59b6"
-                onPress={() => handleFeaturePress('AccessDepartment')}
-              />
-              <ModernFeatureCard
-                title="Usage Analytics"
-                subtitle="Historical data"
-                icon="chart-line"
-                color="#1abc9c"
-                badge={dashboardStats.criticalAlerts}
-                onPress={() => handleFeaturePress('InventoryHistory')}
-              />
-            </View>
-          </ScrollView>
-        </Surface>
+        <DashboardSection
+          title="ADMIN CONTROL"
+          subtitle="System Administration"
+          icon="shield-crown"
+          color="#34495e"
+          features={getAdminDashboardFeatures(handleFeaturePress, dashboardStats.criticalAlerts)}
+          onRefresh={fetchDashboardAnalytics}
+          alertCount={dashboardStats.criticalAlerts}
+        />
       </ScrollView>
     </View>
   );
@@ -397,240 +308,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#34495e',
   },
-  // Main ScrollView - this makes everything scrollable including header
   mainScrollView: {
     flex: 1,
   },
-  // Welcome Header - no longer sticky
-  welcomeHeader: {
-    backgroundColor: '#34495e',
-    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + 10,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  welcomeContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  welcomeLeft: {
-    flex: 1,
-  },
-  greetingText: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 4,
-    fontWeight: '400',
-  },
-  userNameText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  dateText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  welcomeRight: {
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  timeContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    marginRight: 8,
-  },
-  timeText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  refreshButton: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
   analyticsContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: -40,
     marginTop: -10,
-  },
-  // FIXED STATS GRID STYLES
-  statsContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'stretch',
-  },
-  statCard: {
-    width: (width - 52) / 3, // Fixed calculation: total width - padding / 3 columns
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    minHeight: 100, // Ensures consistent height
-    justifyContent: 'space-between',
-  },
-  statHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    position: 'relative',
-  },
-  trendIndicator: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    borderRadius: 10,
-    padding: 2,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#7f8c8d',
-    textAlign: 'center',
-    lineHeight: 14,
-  },
-  // Dashboard container and other styles remain the same
-  dashboardContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    margin: 20,
-    marginTop: 10,
-  },
-  headerContainer: {
-    backgroundColor: '#34495e',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  headerRight: {
-    alignItems: 'center',
-  },
-  alertBadge: {
-    backgroundColor: '#e74c3c',
-  },
-  cardsScrollView: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  modernGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  modernCard: {
-    width: (width - 72) / 2,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-  },
-  cardContent: {
-    padding: 16,
-    alignItems: 'center',
-    minHeight: 120,
-  },
-  cardIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    position: 'relative',
-  },
-  cardBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#e74c3c',
-  },
-  cardTextContainer: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2c3e50',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    textAlign: 'center',
-  },
-  cardArrow: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
   },
 });
 

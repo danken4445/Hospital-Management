@@ -1,17 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Card, Title, Paragraph } from 'react-native-paper';
 import { getDatabase, ref, onValue, get } from 'firebase/database';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { auth } from '../../../../firebaseConfig';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
-const DeptUsageHistory = () => {
+const DeptUsageHistory = ({ route, navigation }) => {
+  const { clinic, department, userRole, permissions } = route.params || {};
+  const userClinic = clinic || null;
+
+  // Check if clinic context is available
+  if (!userClinic) {
+    Alert.alert('Error', 'No clinic context available. Please navigate from the department dashboard.');
+    navigation.goBack();
+    return null;
+  }
+
   const [usageHistory, setUsageHistory] = useState([]);
   const [filteredHistory, setFilteredHistory] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [userDepartment, setUserDepartment] = useState(null);
+  const [userDepartment, setUserDepartment] = useState(department || null);
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
 
@@ -19,32 +29,45 @@ const DeptUsageHistory = () => {
     const fetchUserDepartment = async () => {
       try {
         const user = auth.currentUser;
-        if (user) {
+        if (user && !userDepartment) {
           const db = getDatabase();
-          const userRef = ref(db, `users/${user.uid}`);
+          // Try clinic-specific user data first
+          const userRef = ref(db, `${userClinic}/users/${user.uid}`);
           const snapshot = await get(userRef);
+          
           if (snapshot.exists()) {
             const userData = snapshot.val();
-            console.log('User data:', userData);
-            setUserDepartment(userData.department);
-            return userData.department;
+            console.log('Clinic user data:', userData);
+            setUserDepartment(userData.department || userData.role);
+            return userData.department || userData.role;
+          } else {
+            // Fallback to global users
+            const globalUserRef = ref(db, `users/${user.uid}`);
+            const globalSnapshot = await get(globalUserRef);
+            if (globalSnapshot.exists()) {
+              const userData = globalSnapshot.val();
+              console.log('Global user data:', userData);
+              setUserDepartment(userData.department);
+              return userData.department;
+            }
           }
         }
-        return null;
+        return userDepartment || department;
       } catch (error) {
         console.error('Error fetching user department:', error);
         setLoading(false);
-        return null;
+        return userDepartment || department;
       }
     };
 
     const fetchUsageHistory = async () => {
       try {
-        const department = await fetchUserDepartment();
+        const deptName = await fetchUserDepartment();
         
-        if (department) {
+        if (deptName && userClinic) {
           const db = getDatabase();
-          const historyRef = ref(db, `departments/${department}/usageHistory`);
+          // Use clinic-specific path for usage history
+          const historyRef = ref(db, `${userClinic}/departments/${deptName}/usageHistory`);
           
           onValue(historyRef, (snapshot) => {
             try {
@@ -79,7 +102,7 @@ const DeptUsageHistory = () => {
             setLoading(false);
           });
         } else {
-          console.log('No user department found');
+          console.log('No user department or clinic found');
           setLoading(false);
         }
       } catch (error) {
@@ -89,7 +112,7 @@ const DeptUsageHistory = () => {
     };
 
     fetchUsageHistory();
-  }, []);
+  }, [userClinic, department, userDepartment]);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
@@ -193,8 +216,17 @@ const DeptUsageHistory = () => {
 
   return (
     <View style={styles.container}>
+      {/* Clinic Header */}
+      <View style={styles.clinicHeader}>
+        <View style={styles.clinicInfo}>
+          <FontAwesome5 name="hospital" size={16} color="#00796b" style={styles.clinicIcon} />
+          <Text style={styles.clinicName}>{userClinic || 'No Clinic'}</Text>
+        </View>
+        <Text style={styles.departmentText}>{userDepartment || 'Loading...'} Department</Text>
+      </View>
+
       <Text style={styles.header}>
-        Department: {userDepartment || 'Loading...'}
+        Usage History
       </Text>
 
       {/* Search Bar and Date Controls */}
@@ -249,8 +281,13 @@ const DeptUsageHistory = () => {
         <View style={styles.emptyContainer}>
           <FontAwesome5 name="inbox" size={50} color="#ccc" />
           <Text style={styles.emptyText}>
-            {searchQuery || selectedDate ? 'No matching records found' : 'No usage history available'}
+            {searchQuery || selectedDate ? 'No matching records found' : `No usage history available for ${userClinic}`}
           </Text>
+          {!searchQuery && !selectedDate && (
+            <Text style={styles.emptySubText}>
+              Items used in {userDepartment} department will appear here
+            </Text>
+          )}
         </View>
       ) : (
         <FlatList
@@ -270,6 +307,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
     padding: 20,
+  },
+  clinicHeader: {
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: -20,
+    marginTop: -20,
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  clinicInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  clinicIcon: {
+    marginRight: 8,
+  },
+  clinicName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  departmentText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
   header: {
     fontSize: 20,
@@ -323,6 +390,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  emptySubText: {
+    marginTop: 5,
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   listContainer: {
     paddingBottom: 10,

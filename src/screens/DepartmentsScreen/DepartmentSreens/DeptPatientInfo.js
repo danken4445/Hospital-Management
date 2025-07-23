@@ -4,6 +4,7 @@ import { Button, Provider as PaperProvider, Snackbar, Portal, DefaultTheme, Bann
 import { getDatabase, ref, set, onValue, off, goOffline, goOnline } from 'firebase/database';
 import { auth } from '../../../../firebaseConfig';
 import NetInfo from '@react-native-community/netinfo';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 import { useDeptInventory } from '../../../utils/hooks/useDeptInventory';
 import { deptPatientReducer, initialDeptPatientState } from '../../../utils/reducers/deptPatientReducer';
@@ -21,11 +22,19 @@ import QuantityModal from '../DeptComponents/QuantityModal';
 import BarcodeScannerModal from '../DeptComponents/BarcodeScannerModal';
 
 const DeptPatientInfoScreen = ({ route, navigation }) => {
-  const { patientData } = route.params || {};
+  const { patientData, clinic, department, userRole, permissions } = route.params || {};
+  const userClinic = clinic || null;
   
   // Add safety check for patientData
   if (!patientData) {
     Alert.alert('Error', 'Patient data not found');
+    navigation.goBack();
+    return null;
+  }
+
+  // Check if clinic context is available
+  if (!userClinic) {
+    Alert.alert('Error', 'No clinic context available. Please navigate from the department dashboard.');
     navigation.goBack();
     return null;
   }
@@ -41,7 +50,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
     prescriptions: patientData.prescriptions || {}
   });
 
-  const { checkInventoryItem, updateInventoryQuantity, logUsageHistory } = useDeptInventory();
+  const { checkInventoryItem, updateInventoryQuantity, logUsageHistory } = useDeptInventory(userClinic, department);
   const [isConnected, setIsConnected] = useState(true);
   const [showOfflineBanner, setShowOfflineBanner] = useState(false);
   
@@ -62,14 +71,23 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
   // Firebase listeners
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user || !userClinic) return;
 
-    const userRef = ref(db, `users/${user.uid}`);
-    const patientRef = ref(db, `patient/${patientData.qrData}`);
+    // Use clinic-specific paths
+    const userRef = ref(db, `${userClinic}/users/${user.uid}`);
+    const patientRef = ref(db, `${userClinic}/patient/${patientData.qrData}`);
 
     const userListener = onValue(userRef, (snapshot) => {
       if (snapshot.exists()) {
-        dispatch({ type: 'SET_USER_DEPARTMENT', payload: snapshot.val().department });
+        dispatch({ type: 'SET_USER_DEPARTMENT', payload: snapshot.val().department || snapshot.val().role });
+      } else {
+        // Fallback to global users
+        const globalUserRef = ref(db, `users/${user.uid}`);
+        onValue(globalUserRef, (globalSnapshot) => {
+          if (globalSnapshot.exists()) {
+            dispatch({ type: 'SET_USER_DEPARTMENT', payload: globalSnapshot.val().department });
+          }
+        });
       }
     }, (error) => {
       console.error('User listener error:', error);
@@ -102,7 +120,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         dispatch({
           type: 'SET_UI_STATE',
           payload: {
-            snackbar: { visible: true, message: 'Back online! Syncing changes...' }
+            snackbar: { visible: true, message: `Back online! Syncing ${userClinic} data...` }
           }
         });
       }
@@ -115,7 +133,7 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
       off(patientRef);
       off(connectedRef);
     };
-  }, [patientData.qrData, db]);
+  }, [patientData.qrData, db, userClinic]);
 
   // Handlers
   const handleScan = useCallback((type) => {
@@ -342,20 +360,18 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
 
       console.log('Saving patient data:', updatedPatientData);
 
-      // Only update Firebase if connected
-      if (isConnected) {
-        try {
-          await set(ref(db, `patient/${patientData.qrData}`), updatedPatientData);
-          console.log('Patient data saved successfully');
-        } catch (firebaseError) {
-          console.error('Firebase save error:', firebaseError);
-          Alert.alert('Save Error', `Failed to save to database: ${firebaseError.message}`);
-          dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
-          return;
-        }
-      }
-
-      dispatch({
+        // Only update Firebase if connected
+        if (isConnected) {
+          try {
+            await set(ref(db, `${userClinic}/patient/${patientData.qrData}`), updatedPatientData);
+            console.log('Patient data saved successfully');
+          } catch (firebaseError) {
+            console.error('Firebase save error:', firebaseError);
+            Alert.alert('Save Error', `Failed to save to database: ${firebaseError.message}`);
+            dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
+            return;
+          }
+        }      dispatch({
         type: 'UPDATE_INVENTORY',
         payload: {
           suppliesUsed: updatedSuppliesUsed,
@@ -407,7 +423,14 @@ const DeptPatientInfoScreen = ({ route, navigation }) => {
         <View style={styles.container}>
           <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
           
-       
+          {/* Clinic Header */}
+          <View style={styles.clinicHeader}>
+            <View style={styles.clinicInfo}>
+              <FontAwesome5 name="hospital" size={16} color="#667eea" style={styles.clinicIcon} />
+              <Text style={styles.clinicName}>{userClinic || 'No Clinic'}</Text>
+            </View>
+            <Text style={styles.departmentText}>{department} Department</Text>
+          </View>
 
           {showOfflineBanner && (
             <Banner
@@ -546,6 +569,33 @@ const styles = StyleSheet.create({
   },
   scrollView: { 
     padding: 16 
+  },
+  clinicHeader: {
+    backgroundColor: '#f8f9fa',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  clinicInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  clinicIcon: {
+    marginRight: 8,
+  },
+  clinicName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  departmentText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
   },
   saveButtonContainer: {
     marginVertical: 20,

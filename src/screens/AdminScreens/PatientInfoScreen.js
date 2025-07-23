@@ -18,7 +18,9 @@ import PrescriptionModal from '../DepartmentsScreen/DeptComponents/PrescriptionM
 import QuantityModal from '../DepartmentsScreen/DeptComponents/QuantityModal';
 import BarcodeScannerModal from '../DepartmentsScreen/DeptComponents/BarcodeScannerModal';
 const PatientInfoScreen = ({ route, navigation }) => {
-  const { patientData } = route.params;
+  const { patientData, clinic, userRole, permissions } = route.params;
+  const userClinic = clinic || null;
+  
   const [state, dispatch] = useReducer(patientReducer, {
     ...initialPatientState,
     personalInfo: { ...patientData },
@@ -45,8 +47,16 @@ const PatientInfoScreen = ({ route, navigation }) => {
       return;
     }
 
+    // Check if clinic context is available
+    if (!userClinic) {
+      Alert.alert('Error', 'No clinic context available.');
+      dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
+      return;
+    }
+
     try {
-      const item = await checkInventoryItem(data, state.ui.scanType);
+      // Pass clinic context to inventory check
+      const item = await checkInventoryItem(data, state.ui.scanType, userClinic);
       if (item) {
         dispatch({ 
           type: 'SET_UI_STATE', 
@@ -57,7 +67,7 @@ const PatientInfoScreen = ({ route, navigation }) => {
           } 
         });
       } else {
-        Alert.alert('Error', 'Item not found in inventory.');
+        Alert.alert('Error', `Item not found in ${userClinic} inventory.`);
         dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
       }
     } catch (error) {
@@ -65,17 +75,18 @@ const PatientInfoScreen = ({ route, navigation }) => {
       Alert.alert('Error', 'Failed to process scanned item.');
       dispatch({ type: 'SET_UI_STATE', payload: { scanning: false } });
     }
-  }, [state.ui?.scanType, checkInventoryItem]);
+  }, [state.ui?.scanType, checkInventoryItem, userClinic]);
 
   const handleQuantityConfirm = useCallback(async (quantity) => {
     const item = state.ui.currentScannedItem;
-    if (!item) return;
+    if (!item || !userClinic) return;
 
+    // Pass clinic context to inventory update
     const success = await updateInventoryQuantity([{
       id: item.id,
       type: state.ui.scanType,
       quantity: item.quantity - quantity
-    }]);
+    }], userClinic);
 
     if (success) {
       dispatch({
@@ -84,7 +95,8 @@ const PatientInfoScreen = ({ route, navigation }) => {
           scannedItems: [...state.inventory.scannedItems, { ...item, quantity }]
         }
       });
-      await logUsageHistory(patientData, item, quantity, state.ui.scanType);
+      // Pass clinic context to usage history logging
+      await logUsageHistory(patientData, item, quantity, state.ui.scanType, userClinic);
       dispatch({ 
         type: 'SET_UI_STATE', 
         payload: { 
@@ -93,30 +105,46 @@ const PatientInfoScreen = ({ route, navigation }) => {
         } 
       });
     }
-  }, [state.ui.currentScannedItem, state.ui.scanType, state.inventory.scannedItems]);
+  }, [state.ui.currentScannedItem, state.ui.scanType, state.inventory.scannedItems, userClinic, updateInventoryQuantity, logUsageHistory, patientData]);
 
   const handleSaveAll = useCallback(async () => {
+    // Check if clinic context is available
+    if (!userClinic) {
+      Alert.alert('Error', 'No clinic context available. Cannot save patient data.');
+      return;
+    }
+
     try {
       dispatch({ type: 'SET_UI_STATE', payload: { loading: true } });
       const db = getDatabase();
-      await set(ref(db, `patient/${patientData.qrData}`), {
+      
+      // Save to clinic-specific patient data path
+      const patientRef = ref(db, `${userClinic}/patient/${patientData.qrData}`);
+      
+      const patientUpdateData = {
         ...state.personalInfo,
         suppliesUsed: state.inventory.suppliesUsed,
         medUse: state.inventory.medUse,
-        prescriptions: state.prescriptions
-      });
+        prescriptions: state.prescriptions,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: userRole || 'unknown'
+      };
+
+      await set(patientRef, patientUpdateData);
+      
       dispatch({ 
         type: 'SET_UI_STATE', 
         payload: { 
-          snackbar: { visible: true, message: 'Saved successfully!' },
+          snackbar: { visible: true, message: `Patient data saved successfully in ${userClinic}!` },
           loading: false
         } 
       });
     } catch (error) {
-      Alert.alert('Error', 'Failed to save changes.');
+      console.error('Save error:', error);
+      Alert.alert('Error', 'Failed to save changes. Please try again.');
       dispatch({ type: 'SET_UI_STATE', payload: { loading: false } });
     }
-  }, [state, patientData.qrData]);
+  }, [state, patientData.qrData, userClinic, userRole]);
 
   // Memoized values
   const memoizedPrescriptions = useMemo(() => 
@@ -135,7 +163,19 @@ const PatientInfoScreen = ({ route, navigation }) => {
           <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent={true} />
           <Appbar.Header>
             <Appbar.BackAction onPress={() => navigation.goBack()} />
-            <Appbar.Content title="Patient Information" />
+            <Appbar.Content 
+              title="Patient Information" 
+              subtitle={userClinic ? `Clinic: ${userClinic}` : 'No clinic context'}
+            />
+            {!userClinic && (
+              <Appbar.Action 
+                icon="alert-circle" 
+                onPress={() => Alert.alert(
+                  'Warning', 
+                  'No clinic context available. Data may not save correctly.'
+                )} 
+              />
+            )}
           </Appbar.Header>
 
           <ScrollView contentContainerStyle={styles.container}>

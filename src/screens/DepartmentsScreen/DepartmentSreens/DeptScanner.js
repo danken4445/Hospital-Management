@@ -11,25 +11,55 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getDatabase, ref, get } from 'firebase/database';
 import { auth } from '../../../../firebaseConfig';
+import { FontAwesome5 } from '@expo/vector-icons';
 
-const DeptPatientScanner = ({ navigation }) => {
+const DeptPatientScanner = ({ navigation, route }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userDepartment, setUserDepartment] = useState('');
 
+  // Get clinic context from navigation params
+  const { clinic, department, userRole, permissions } = route?.params || {};
+  const userClinic = clinic || null;
+
   useEffect(() => {
     const fetchUserDepartment = async () => {
       try {
+        // First try to use department from navigation params
+        if (department) {
+          console.log('Using department from navigation params:', department);
+          setUserDepartment(department);
+          return;
+        }
+
+        // Fallback: fetch from database with clinic context
         const user = auth.currentUser;
         if (user) {
           const db = getDatabase();
-          const userRef = ref(db, `users/${user.uid}`);
-          const snapshot = await get(userRef);
-          if (snapshot.exists()) {
-            const userData = snapshot.val();
+          let userData = null;
+
+          // Try clinic-specific user data first
+          if (userClinic) {
+            const clinicUserRef = ref(db, `${userClinic}/users/${user.uid}`);
+            const clinicSnapshot = await get(clinicUserRef);
+            if (clinicSnapshot.exists()) {
+              userData = clinicSnapshot.val();
+            }
+          }
+
+          // Fallback to global users
+          if (!userData) {
+            const globalUserRef = ref(db, `users/${user.uid}`);
+            const globalSnapshot = await get(globalUserRef);
+            if (globalSnapshot.exists()) {
+              userData = globalSnapshot.val();
+            }
+          }
+
+          if (userData) {
             console.log('User department loaded:', userData.department);
-            setUserDepartment(userData.department);
+            setUserDepartment(userData.department || userData.role);
           } else {
             console.error('User data not found');
             Alert.alert('Error', 'User data not found. Please log in again.');
@@ -45,7 +75,7 @@ const DeptPatientScanner = ({ navigation }) => {
     };
 
     fetchUserDepartment();
-  }, []);
+  }, [department, userClinic]);
 
   const handleBarCodeScanned = async ({ type, data }) => {
     if (scanned || loading) return;
@@ -53,14 +83,26 @@ const DeptPatientScanner = ({ navigation }) => {
     console.log('=== QR SCAN DEBUG ===');
     console.log('Scanned ID:', data);
     console.log('User Department:', userDepartment);
+    console.log('User Clinic:', userClinic);
+    
+    // Check if clinic context is available
+    if (!userClinic) {
+      Alert.alert(
+        'No Clinic Context',
+        'Please navigate from the department dashboard to scan patients.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
     
     setScanned(true);
     setLoading(true);
 
     try {
       const db = getDatabase();
-      const patientRef = ref(db, `patient/${data}`);
-      console.log('Fetching patient data from:', `patient/${data}`);
+      // Use clinic-specific patient path
+      const patientRef = ref(db, `${userClinic}/patient/${data}`);
+      console.log('Fetching patient data from:', `${userClinic}/patient/${data}`);
       
       const snapshot = await get(patientRef);
 
@@ -69,13 +111,15 @@ const DeptPatientScanner = ({ navigation }) => {
         console.log('Patient data found:', {
           name: patientData.name,
           roomType: patientData.roomType,
-          userDept: userDepartment
+          userDept: userDepartment,
+          clinic: userClinic
         });
 
         // Ensure QR data is included in patient data
         const patientDataWithQR = {
           ...patientData,
           qrData: data,
+          clinic: userClinic,
           // Ensure all required fields are present with defaults
           suppliesUsed: Array.isArray(patientData.suppliesUsed) ? patientData.suppliesUsed : [],
           medUse: Array.isArray(patientData.medUse) ? patientData.medUse : [],
@@ -87,25 +131,29 @@ const DeptPatientScanner = ({ navigation }) => {
           console.log('Access granted - navigating to patient info');
           setLoading(false);
           navigation.navigate('DeptPatientInfoScreen', { 
-            patientData: patientDataWithQR 
+            patientData: patientDataWithQR,
+            clinic: userClinic,
+            department: userDepartment,
+            userRole: userRole,
+            permissions: permissions
           });
         } else {
           console.log(`Access denied - Patient room: ${patientData.roomType}, User dept: ${userDepartment}`);
           setLoading(false);
           Alert.alert(
             'Access Denied',
-            `This patient is assigned to ${patientData.roomType}, but you're authorized for ${userDepartment}.`,
+            `This patient is assigned to ${patientData.roomType}, but you're authorized for ${userDepartment} in ${userClinic}.`,
             [
               { text: 'OK', onPress: () => setScanned(false) }
             ]
           );
         }
       } else {
-        console.log('No patient data found for ID:', data);
+        console.log('No patient data found for ID:', data, 'in clinic:', userClinic);
         setLoading(false);
         Alert.alert(
           'Patient Not Found', 
-          `No patient record found for ID: ${data}`,
+          `No patient record found for ID: ${data} in ${userClinic}`,
           [
             { text: 'Scan Again', onPress: () => setScanned(false) }
           ]
@@ -136,8 +184,25 @@ const DeptPatientScanner = ({ navigation }) => {
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
+        <FontAwesome5 name="camera" size={48} color="#666" style={styles.icon} />
         <Text style={styles.message}>Camera permission is required to scan QR codes</Text>
         <Button onPress={requestPermission} title="Grant Camera Permission" />
+      </View>
+    );
+  }
+
+  // Show warning if no clinic context
+  if (!userClinic) {
+    return (
+      <View style={styles.centered}>
+        <FontAwesome5 name="exclamation-triangle" size={48} color="#FF9800" />
+        <Text style={styles.warningTitle}>No Clinic Context</Text>
+        <Text style={styles.message}>
+          Please navigate from your department dashboard to scan patients.
+        </Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -171,12 +236,31 @@ const DeptPatientScanner = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* Department indicator */}
-      {userDepartment && (
-        <View style={styles.departmentIndicator}>
-          <Text style={styles.departmentText}>{userDepartment} Department</Text>
-        </View>
-      )}
+      {/* Department and Clinic indicator */}
+      <View style={styles.headerContainer}>
+        {userClinic && (
+          <View style={styles.clinicIndicator}>
+            <FontAwesome5 name="hospital" size={16} color="#ffffff" />
+            <Text style={styles.clinicText}>{userClinic}</Text>
+          </View>
+        )}
+        {userDepartment && (
+          <View style={styles.departmentIndicator}>
+            <FontAwesome5 name="user-md" size={16} color="#ffffff" />
+            <Text style={styles.departmentText}>{userDepartment} Department</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Scanning instructions */}
+      <View style={styles.instructionsContainer}>
+        <Text style={styles.instructionsText}>
+          Position patient QR code within the frame
+        </Text>
+        <Text style={styles.subInstructionsText}>
+          Only {userDepartment} patients in {userClinic}
+        </Text>
+      </View>
     </View>
   );
 };
@@ -206,6 +290,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#ffffff',
+    padding: 20,
+  },
+  icon: {
+    marginBottom: 20,
+  },
+  warningTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FF9800',
+    marginTop: 16,
+    marginBottom: 8,
   },
   scanAgainButton: {
     position: 'absolute',
@@ -227,11 +322,45 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  departmentIndicator: {
+  backButton: {
+    marginTop: 20,
+    backgroundColor: '#007bff',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  headerContainer: {
     position: 'absolute',
     top: 50,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0, 123, 255, 0.9)',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  clinicIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(33, 150, 243, 0.9)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 8,
+  },
+  clinicText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 6,
+  },
+  departmentIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.9)',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
@@ -240,6 +369,31 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: 'bold',
+    marginLeft: 6,
+  },
+  instructionsContainer: {
+    position: 'absolute',
+    bottom: 180,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  instructionsText: {
+    color: '#ffffff',
+    fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  subInstructionsText: {
+    color: '#ffffff',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.8,
   },
   message: {
     textAlign: 'center',
@@ -247,6 +401,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     fontSize: 16,
     color: '#333',
+    lineHeight: 22,
   },
 });
 

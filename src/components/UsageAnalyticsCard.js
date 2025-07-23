@@ -1,36 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, Animated, TouchableOpacity } from 'react-native';
-import { Card } from 'react-native-paper';
+import { Card, Surface } from 'react-native-paper';
 import { PieChart, BarChart } from 'react-native-chart-kit';
 import { getDatabase, ref, onValue } from 'firebase/database';
+import { FontAwesome5 } from '@expo/vector-icons';
 
 const screenWidth = Dimensions.get('window').width;
 
-const UsageAnalyticsCard = ({ onChartPress }) => {
+const UsageAnalyticsCard = ({ onChartPress, clinic, userRole }) => {
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [pieChartData, setPieChartData] = useState([]);
   const [barChartData, setBarChartData] = useState(null);
   const [scrollX] = useState(new Animated.Value(0));
+  const [loading, setLoading] = useState(true);
+
+  const userClinic = clinic || null;
 
   useEffect(() => {
+    // If no clinic context is available, don't load data
+    if (!userClinic) {
+      setLoading(false);
+      return;
+    }
+
     const db = getDatabase();
-    const departmentsRef = ref(db, 'departments');
+    // Reference clinic-specific departments
+    const departmentsRef = ref(db, `${userClinic}/departments`);
 
     const fetchData = () => {
       let allUsageHistory = [];
 
-      // Fetching usage history from all departments
-      onValue(departmentsRef, (snapshot) => {
+      // Fetching usage history from clinic-specific departments
+      const unsubscribe = onValue(departmentsRef, (snapshot) => {
         if (snapshot.exists()) {
           const departmentsData = snapshot.val();
 
-          // Loop through all departments
+          // Loop through all departments in the clinic
           Object.keys(departmentsData).forEach((deptKey) => {
             const department = departmentsData[deptKey];
             if (department.usageHistory) {
               // Collect usage history from each department
               Object.keys(department.usageHistory).forEach((usageKey) => {
-                allUsageHistory.push(department.usageHistory[usageKey]);
+                const usageEntry = department.usageHistory[usageKey];
+                allUsageHistory.push({
+                  ...usageEntry,
+                  department: deptKey,
+                  clinic: userClinic
+                });
               });
             }
           });
@@ -39,18 +55,30 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
         } else {
           setInventoryHistory([]);
         }
+        setLoading(false);
+      }, (error) => {
+        console.error('Error fetching usage analytics:', error);
+        setInventoryHistory([]);
+        setLoading(false);
       });
+
+      return unsubscribe;
     };
 
-    fetchData();
-  }, []);
+    const unsubscribe = fetchData();
+    return () => unsubscribe && unsubscribe();
+  }, [userClinic]);
 
   useEffect(() => {
-    if (inventoryHistory.length === 0) return;
+    if (inventoryHistory.length === 0) {
+      setPieChartData([]);
+      setBarChartData(null);
+      return;
+    }
 
     const itemUsage = {};
 
-    // Aggregate item usage across all departments
+    // Aggregate item usage across all departments in the clinic
     inventoryHistory.forEach((entry) => {
       if (itemUsage[entry.itemName]) {
         itemUsage[entry.itemName] += entry.quantity;
@@ -59,18 +87,25 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
       }
     });
 
-    const pieData = Object.keys(itemUsage).map((itemName, index) => ({
-      name: itemName,
-      quantity: itemUsage[itemName],
+    // Sort items by usage quantity (descending) and take top 10
+    const sortedItems = Object.entries(itemUsage)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10);
+
+    const pieData = sortedItems.map(([itemName, quantity], index) => ({
+      name: itemName.length > 15 ? itemName.substring(0, 15) + '...' : itemName,
+      quantity: quantity,
       color: getColor(index),
       legendFontColor: '#ffffff',
-      legendFontSize: 14,
+      legendFontSize: 12,
     }));
 
     setPieChartData(pieData);
 
-    const labels = Object.keys(itemUsage);
-    const quantities = Object.values(itemUsage);
+    const labels = sortedItems.map(([itemName]) => 
+      itemName.length > 8 ? itemName.substring(0, 8) + '...' : itemName
+    );
+    const quantities = sortedItems.map(([, quantity]) => quantity);
 
     if (labels.length && quantities.length) {
       setBarChartData({
@@ -97,17 +132,49 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
       console.error('Invalid onChartPress prop');
       return null;
     }
+
+    // Show clinic context warning if no clinic
+    if (!userClinic) {
+      return (
+        <Card style={[styles.card, styles.warningCard]}>
+          <Card.Content style={styles.warningContent}>
+            <FontAwesome5 name="exclamation-triangle" size={32} color="#FF9800" />
+            <Text style={styles.warningTitle}>No Clinic Context</Text>
+            <Text style={styles.warningText}>
+              Please navigate from your clinic dashboard to view analytics.
+            </Text>
+          </Card.Content>
+        </Card>
+      );
+    }
+
+    // Show loading state
+    if (loading) {
+      return (
+        <Card style={styles.card}>
+          <Card.Content style={styles.loadingContent}>
+            <FontAwesome5 name="chart-pie" size={32} color="#ffffff" />
+            <Text style={styles.loadingText}>Loading {userClinic} analytics...</Text>
+          </Card.Content>
+        </Card>
+      );
+    }
+
     if (type === 'pie') {
       return (
         <TouchableOpacity activeOpacity={0.7} onPress={() => onChartPress('pie')}>
           <Card style={styles.card}>
             <Card.Content>
-              <Text style={styles.chartTitle}>Item Usage Overview</Text>
+              <View style={styles.chartHeader}>
+                <FontAwesome5 name="chart-pie" size={20} color="#ffffff" />
+                <Text style={styles.chartTitle}>Item Usage Overview</Text>
+              </View>
+              <Text style={styles.clinicLabel}>{userClinic} - Top 10 Items</Text>
               {pieChartData.length ? (
                 <PieChart
                   data={pieChartData}
                   width={screenWidth - 60}
-                  height={240}
+                  height={220}
                   chartConfig={chartConfig}
                   accessor={'quantity'}
                   backgroundColor={'transparent'}
@@ -115,7 +182,10 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
                   absolute
                 />
               ) : (
-                <Text style={styles.noDataText}>No data available for the pie chart.</Text>
+                <View style={styles.noDataContainer}>
+                  <FontAwesome5 name="chart-pie" size={48} color="#666" />
+                  <Text style={styles.noDataText}>No usage data available for {userClinic}.</Text>
+                </View>
               )}
             </Card.Content>
           </Card>
@@ -126,12 +196,16 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
         <TouchableOpacity activeOpacity={0.7} onPress={() => onChartPress('bar')}>
           <Card style={[styles.card, styles.barCard]}>
             <Card.Content>
-              <Text style={styles.chartTitle}>Item-wise Usage</Text>
+              <View style={styles.chartHeader}>
+                <FontAwesome5 name="chart-bar" size={20} color="#ffffff" />
+                <Text style={styles.chartTitle}>Item-wise Usage</Text>
+              </View>
+              <Text style={styles.clinicLabel}>{userClinic} - Usage Quantities</Text>
               {barChartData ? (
                 <BarChart
                   data={barChartData}
                   width={screenWidth - 60}
-                  height={280}
+                  height={260}
                   chartConfig={chartConfig}
                   verticalLabelRotation={30}
                   fromZero
@@ -139,7 +213,10 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
                   showValuesOnTopOfBars={true}
                 />
               ) : (
-                <Text style={styles.noDataText}>No data available for the bar chart.</Text>
+                <View style={styles.noDataContainer}>
+                  <FontAwesome5 name="chart-bar" size={48} color="#666" />
+                  <Text style={styles.noDataText}>No usage data available for {userClinic}.</Text>
+                </View>
               )}
             </Card.Content>
           </Card>
@@ -171,21 +248,31 @@ const UsageAnalyticsCard = ({ onChartPress }) => {
 
   return (
     <View>
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        style={{ width: screenWidth }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-      >
-        {renderSlide('pie')}
-        {renderSlide('bar')}
-      </ScrollView>
-      {renderPagination()}
+      {/* Only render scrollable charts if clinic context exists and not loading */}
+      {userClinic && !loading ? (
+        <>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={{ width: screenWidth }}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+              { useNativeDriver: false }
+            )}
+            scrollEventThrottle={16}
+          >
+            {renderSlide('pie')}
+            {renderSlide('bar')}
+          </ScrollView>
+          {renderPagination()}
+        </>
+      ) : (
+        // Single slide for warning or loading
+        <View style={{ width: screenWidth }}>
+          {renderSlide('pie')}
+        </View>
+      )}
     </View>
   );
 };
@@ -219,18 +306,68 @@ const styles = StyleSheet.create({
     marginBottom: 22,
     paddingBottom: 32,
   },
+  warningCard: {
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF9800',
+  },
+  warningContent: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  warningTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FF9800',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  warningText: {
+    fontSize: 14,
+    color: '#FF9800',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#ffffff',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
   chartTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#ffffff',
-    marginVertical: 15,
+    marginLeft: 8,
     textAlign: 'center',
   },
+  clinicLabel: {
+    fontSize: 12,
+    color: '#B0BEC5',
+    textAlign: 'center',
+    marginBottom: 15,
+    fontStyle: 'italic',
+  },
+  noDataContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
   noDataText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#ffffff',
     textAlign: 'center',
-    marginVertical: 20,
+    marginTop: 16,
+    opacity: 0.8,
   },
   paginationContainer: {
     flexDirection: 'row',
